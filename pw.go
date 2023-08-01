@@ -1,0 +1,79 @@
+package main
+
+// #include <stdlib.h>
+// #include <nss.h>
+// #include <shadow.h>
+import "C"
+import (
+	"github.com/Eun/nss_http/types"
+	"github.com/rs/zerolog/log"
+)
+
+//export _nss_http_setpwent
+func _nss_http_setpwent() C.enum_nss_status {
+	log.Debug().Msg("_nss_http_setpwent")
+	return C.NSS_STATUS_SUCCESS
+}
+
+//export _nss_http_endpwent
+func _nss_http_endpwent() C.enum_nss_status {
+	log.Debug().Msg("_nss_http_endpwent")
+	return C.NSS_STATUS_SUCCESS
+}
+
+//export _nss_http_getpwent_r
+func _nss_http_getpwent_r(resultbuf *C.struct_passwd, buffer *C.char, buflen C.size_t, result **C.struct_passwd) C.enum_nss_status {
+	log.Debug().Msg("_nss_http_getpwent_r")
+	return C.NSS_STATUS_NOTFOUND
+}
+
+//export _nss_http_getpwnam_r
+func _nss_http_getpwnam_r(name *C.char, result *C.struct_passwd, buffer *C.char, buflen C.size_t, errnop *C.int) C.enum_nss_status {
+	log.Debug().Msg("_nss_http_getpwnam_r")
+
+	userName := C.GoString(name)
+	user, err := getUser(types.NameIdentifier(userName))
+	if err != nil {
+		log.Err(err).Str("name", userName).Msg("unable to get user by name")
+		return C.NSS_STATUS_UNAVAIL
+	}
+	if user == nil {
+		log.Debug().Str("name", userName).Msg("user not found")
+		return C.NSS_STATUS_NOTFOUND
+	}
+
+	log.Debug().Any("user", user).Msg("user found")
+
+	// store everything in buffer
+	if err := StoreUserInPasswdStruct(user, result, buffer, buflen); err != nil {
+		log.Err(err).Str("name", userName).Msg("unable to store user in buffer")
+		return C.NSS_STATUS_UNAVAIL
+	}
+
+	return C.NSS_STATUS_SUCCESS
+}
+
+//export _nss_http_getpwuid_r
+func _nss_http_getpwuid_r(uid C.uint, result *C.struct_passwd, buffer *C.char, buflen C.size_t, errnop *C.int) C.enum_nss_status {
+	log.Debug().Msg("nss_http_getpwuid_r")
+	goUid := uint(uid)
+	user, err := getUser(types.UIDIdentifier(goUid))
+	if err != nil {
+		log.Err(err).Uint("uid", goUid).Msg("unable to get user by uid")
+		return C.NSS_STATUS_UNAVAIL
+	}
+	if user == nil {
+		log.Debug().Uint("uid", goUid).Msg("user not found")
+		return C.NSS_STATUS_NOTFOUND
+	}
+
+	log.Debug().Any("user", user).Msg("user found")
+
+	// store everything in buffer
+	if err := StoreUserInPasswdStruct(user, result, buffer, buflen); err != nil {
+		log.Err(err).Uint("uid", goUid).Msg("unable to store user in buffer")
+		return C.NSS_STATUS_UNAVAIL
+	}
+
+	return C.NSS_STATUS_SUCCESS
+}

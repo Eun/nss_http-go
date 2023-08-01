@@ -1,0 +1,11 @@
+[
+  {
+    "User": "joe",
+    "Passwd": "asdasasdasdsadasdasdasdasdasda",
+    "Name": "Joe Doe",
+    "Dir": "/home/joe",
+    "Shell": "/bin/bash",
+    "Uid": 3000,
+    "Gid": 3000
+  }
+]
