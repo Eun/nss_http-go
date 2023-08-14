@@ -5,6 +5,7 @@ package main
 #include <shadow.h>
 #include <string.h>
 #include <pwd.h>
+#include <grp.h>
 static size_t sizeof_char = sizeof(char*);
 */
 import "C"
@@ -63,5 +64,16 @@ func StoreUserInSpwdStruct(user *types.User, result *C.struct_spwd, buffer *C.ch
 	result.sp_inact = -1
 	result.sp_expire = -1
 	result.sp_flag = 0
+	return nil
+}
+
+func StoreGroupInGroupStruct(group *types.Group, result *C.struct_group, buffer *C.char, buflen C.size_t) error {
+	ptrs := copyToBuffer(buffer, buflen, group.Name, group.Passwd)
+	if len(ptrs) == 0 {
+		return errors.New("out of memory")
+	}
+	result.gr_name = ptrs[0]
+	result.gr_passwd = ptrs[1]
+	result.gr_gid = group.Gid
 	return nil
 }

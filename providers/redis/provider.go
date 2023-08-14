@@ -63,7 +63,45 @@ func (f *Provider) SetUser(ctx context.Context, user *types.User) error {
 		}
 	}
 	return nil
+}
 
+func (f *Provider) GetGroup(ctx context.Context, identifier any) (*types.Group, error) {
+	key, err := f.getKey("groups", identifier)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to build request url")
+	}
+	val, err := f.client.Get(ctx, key).Bytes()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil
+		}
+		return nil, errors.Wrap(err, "unable to get value")
+	}
+
+	var group types.Group
+	if err := json.Unmarshal(val, &group); err != nil {
+		return nil, errors.Wrapf(err, "unable to decode cache item: %q", string(val))
+	}
+	return &group, nil
+}
+
+func (f *Provider) SetGroup(ctx context.Context, group *types.Group) error {
+	buf, err := json.Marshal(group)
+	if err != nil {
+		return errors.Wrapf(err, "unable to encode cache item: %+v", group)
+	}
+
+	for _, i := range []any{types.NameIdentifier(group.Name), types.UIDIdentifier(group.Gid)} {
+		key, err := f.getKey("groups", i)
+		if err != nil {
+			return errors.Wrap(err, "unable to build request url")
+		}
+
+		if err := f.client.Set(ctx, key, buf, time.Duration(f.config.TTL)).Err(); err != nil {
+			return errors.Wrap(err, "unable to set value")
+		}
+	}
+	return nil
 }
 
 func (f *Provider) getKey(section string, identifier any) (string, error) {

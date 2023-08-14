@@ -22,8 +22,14 @@ type cacheUserItem struct {
 	Expiry time.Time
 }
 
+type cacheGroupItem struct {
+	Group  types.Group
+	Expiry time.Time
+}
+
 var internalCache struct {
-	userMap sync.Map
+	userMap  sync.Map
+	groupMap sync.Map
 }
 
 type Provider struct {
@@ -62,6 +68,40 @@ func (f *Provider) SetUser(ctx context.Context, user *types.User) error {
 		}
 		internalCache.userMap.Store(key, cacheUserItem{
 			User:   *user,
+			Expiry: time.Now().Add(time.Duration(f.config.TTL)),
+		})
+	}
+	return nil
+}
+
+func (f *Provider) GetGroup(ctx context.Context, identifier any) (*types.Group, error) {
+	key, err := f.getKey(identifier)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to build request url")
+	}
+	v, ok := internalCache.groupMap.Load(key)
+	if !ok {
+		return nil, nil
+	}
+	item, ok := v.(cacheGroupItem)
+	if !ok {
+		return nil, nil
+	}
+
+	if time.Now().After(item.Expiry) {
+		return nil, nil
+	}
+	return &item.Group, nil
+}
+
+func (f *Provider) SetGroup(ctx context.Context, group *types.Group) error {
+	for _, i := range []any{types.NameIdentifier(group.Name), types.UIDIdentifier(group.Gid)} {
+		key, err := f.getKey(i)
+		if err != nil {
+			return errors.Wrap(err, "unable to build request url")
+		}
+		internalCache.groupMap.Store(key, cacheGroupItem{
+			Group:  *group,
 			Expiry: time.Now().Add(time.Duration(f.config.TTL)),
 		})
 	}

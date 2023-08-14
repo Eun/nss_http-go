@@ -46,6 +46,26 @@ func (f *Provider) GetUser(ctx context.Context, identifier any) (*types.User, er
 	return &user, nil
 }
 
+func (f *Provider) GetGroup(ctx context.Context, identifier any) (*types.Group, error) {
+	requestURL, err := f.getRequestURL("group", identifier)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to build request url")
+	}
+	body, err := helpers.DoRequest(ctx, requestURL, time.Duration(f.config.RequestTimeout), f.config.Headers, maxResponseSize)
+	if err != nil {
+		return nil, errors.Wrap(err, "request failed")
+	}
+	if body == nil {
+		return nil, nil
+	}
+
+	var group types.Group
+	if err := json.Unmarshal(body, &group); err != nil {
+		return nil, errors.Wrapf(err, "unable to decode server response: %q", string(body))
+	}
+	return &group, nil
+}
+
 func (f *Provider) getRequestURL(section string, identifier any) (string, error) {
 	switch v := identifier.(type) {
 	case types.UIDIdentifier:
