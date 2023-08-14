@@ -58,7 +58,7 @@ func (f *Provider) SetUser(ctx context.Context, user *types.User) error {
 			return errors.Wrap(err, "unable to build request url")
 		}
 
-		if err := f.client.Set(ctx, key, buf, f.config.TTL).Err(); err != nil {
+		if err := f.client.Set(ctx, key, buf, time.Duration(f.config.TTL)).Err(); err != nil {
 			return errors.Wrap(err, "unable to set value")
 		}
 	}
@@ -100,7 +100,7 @@ func New(config json.RawMessage) (*Provider, error) {
 	}
 
 	if c.TTL == 0 {
-		c.TTL = time.Minute
+		c.TTL = types.Duration(time.Minute)
 	}
 
 	opts, err := redis.ParseURL(c.URL)

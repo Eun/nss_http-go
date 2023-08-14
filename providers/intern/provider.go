@@ -62,7 +62,7 @@ func (f *Provider) SetUser(ctx context.Context, user *types.User) error {
 		}
 		internalCache.userMap.Store(key, cacheUserItem{
 			User:   *user,
-			Expiry: time.Now().Add(f.config.TTL),
+			Expiry: time.Now().Add(time.Duration(f.config.TTL)),
 		})
 	}
 	return nil
@@ -98,7 +98,7 @@ func New(config json.RawMessage) (*Provider, error) {
 	}
 
 	if c.TTL == 0 {
-		c.TTL = time.Minute
+		c.TTL = types.Duration(time.Minute)
 	}
 
 	return &Provider{config: c}, nil

@@ -1,4 +1,4 @@
-package dynamic
+package rest
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const Name = "http_dynamic"
+const Name = "http_rest"
 
 const maxResponseSize = 1024 * 1024
 
@@ -31,9 +31,12 @@ func (f *Provider) GetUser(ctx context.Context, identifier any) (*types.User, er
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to build request url")
 	}
-	body, err := helpers.DoRequest(ctx, requestURL, f.config.RequestTimeout, f.config.Headers, maxResponseSize)
+	body, err := helpers.DoRequest(ctx, requestURL, time.Duration(f.config.RequestTimeout), f.config.Headers, maxResponseSize)
 	if err != nil {
 		return nil, errors.Wrap(err, "request failed")
+	}
+	if body == nil {
+		return nil, nil
 	}
 
 	var user types.User
@@ -77,7 +80,7 @@ func New(config json.RawMessage) (*Provider, error) {
 	}
 
 	if c.RequestTimeout == 0 {
-		c.RequestTimeout = time.Minute
+		c.RequestTimeout = types.Duration(time.Minute)
 	}
 
 	return &Provider{config: c}, nil

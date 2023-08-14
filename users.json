@@ -1,11 +1,14 @@
 [
   {
     "User": "joe",
-    "Passwd": "asdasasdasdsadasdasdasdasdasda",
+    "Passwd": "$6$.WdgkoyPbvxIDDKU$mOVy8BlNvGssTojiLDyo37S7/puNMBx53S4VAp1nhxSnV5G7bzZw42QxbcYiq4TJwReY0cBLQGc5Dt6Mnk4lg1",
     "Name": "Joe Doe",
     "Dir": "/home/joe",
     "Shell": "/bin/bash",
     "Uid": 3000,
-    "Gid": 3000
+    "Gid": 3000,
+    "AuthKeys": [
+      "ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAQEA0iftI+BgPr2F0aX1ajg89TVsGZ/nKvyayWSHpynE53s+5KABK7ns66hZyQWe/Q2g15Npebdz7xXES752ch3CtPiBOe//aehUZTYj/rxY9z7/JoYBYeoGeTHNtZ1D6IWnH3Aw9xeAPx1utHPMNRNkXiJWL7FaUKFMsLSK8irc/nyiJrJ5kIoGZBLMXu9CQY775DXP9xkT23nvV2RQw/9Sr20EFtSATqUrYab0/3V4Sb+W4fIAa4zGo75GC8Xpgb0gO96atJzVD8s3bpOFXl+F52JUZXyCU4B68gO+1Chv/TT6TuLU0jtVBJorvincc573NrmSNdhavmJBbHqJ6CXx5Q== rsa-key-20160901"
+    ]
   }
 ]

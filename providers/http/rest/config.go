@@ -1,9 +1,9 @@
-package dynamic
+package rest
 
-import "time"
+import "github.com/Eun/nss_http/types"
 
 type Config struct {
 	URL            string            `json:"URL"`
-	RequestTimeout time.Duration     `json:"RequestTimeout"`
+	RequestTimeout types.Duration    `json:"RequestTimeout"`
 	Headers        map[string]string `json:"Headers"`
 }

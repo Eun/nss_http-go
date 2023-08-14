@@ -1,7 +1,7 @@
 package intern
 
-import "time"
+import "github.com/Eun/nss_http/types"
 
 type Config struct {
-	TTL time.Duration `json:"TTL"`
+	TTL types.Duration `json:"TTL"`
 }

@@ -1,0 +1,14 @@
+{
+  "Providers": [
+    {
+      "Name": "http_static",
+      "UsersURL": "http://localhost:8000/users.json",
+      "GroupsURL": "http://localhost:8000/groups.json",
+      "RequestTimeout": "1m",
+      "Headers": {}
+    }
+  ],
+  "Cache": {
+    "Name": "disabled"
+  }
+}

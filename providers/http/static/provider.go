@@ -3,7 +3,6 @@ package static
 import (
 	"context"
 	"encoding/json"
-	"net/url"
 	"time"
 
 	"github.com/Eun/nss_http/providers/http/helpers"
@@ -25,11 +24,7 @@ func (f *Provider) Name() string {
 }
 
 func (f *Provider) GetUser(ctx context.Context, identifier any) (*types.User, error) {
-	requestURL, err := url.JoinPath(f.config.URL, f.config.UsersPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to build request url")
-	}
-	body, err := helpers.DoRequest(ctx, requestURL, f.config.RequestTimeout, f.config.Headers, maxResponseSize)
+	body, err := helpers.DoRequest(ctx, f.config.UsersURL, time.Duration(f.config.RequestTimeout), f.config.Headers, maxResponseSize)
 	if err != nil {
 		return nil, errors.Wrap(err, "request failed")
 	}
@@ -67,20 +62,15 @@ func New(config json.RawMessage) (*Provider, error) {
 		}
 	}
 
-	if c.URL == "" {
-		return nil, errors.New("URL is not set in config")
+	if c.UsersURL == "" {
+		return nil, errors.New("UsersURL is not set in config")
+	}
+	if c.GroupsURL == "" {
+		return nil, errors.New("GroupsURL is not set in config")
 	}
 
 	if c.RequestTimeout == 0 {
-		c.RequestTimeout = time.Minute
-	}
-
-	if c.UsersPath == "" {
-		c.UsersPath = "users.json"
-	}
-
-	if c.GroupsPath == "" {
-		c.GroupsPath = "groups.json"
+		c.RequestTimeout = types.Duration(time.Minute)
 	}
 
 	return &Provider{config: c}, nil

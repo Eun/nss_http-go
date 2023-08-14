@@ -1,0 +1,7 @@
+services:
+  test:
+    image: golang:1.20-bookworm
+    volumes:
+      - $PWD:/nss_http/
+    working_dir: /nss_http
+    command: make test-in-docker

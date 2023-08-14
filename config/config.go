@@ -5,10 +5,9 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Eun/nss_http/providers/dummy"
-	"github.com/Eun/nss_http/providers/http/dynamic"
+	"github.com/Eun/nss_http/providers/http/rest"
 	"github.com/Eun/nss_http/providers/http/static"
 	"github.com/Eun/nss_http/providers/intern"
 	"github.com/Eun/nss_http/providers/redis"
@@ -51,7 +50,7 @@ func (f *ConfigProvider) UnmarshalJSON(data []byte) error {
 
 type ConfigCache struct {
 	ConfigProvider
-	TTL time.Duration `json:"TTL"`
+	TTL types.Duration `json:"TTL"`
 }
 
 var configHolder struct {
@@ -96,8 +95,8 @@ func initializeInstances(config *Config) error {
 		switch strings.ToLower(provider.Name) {
 		case static.Name:
 			config.Providers[i], err = static.New(provider.ExtraFields)
-		case dynamic.Name:
-			config.Providers[i], err = dynamic.New(provider.ExtraFields)
+		case rest.Name:
+			config.Providers[i], err = rest.New(provider.ExtraFields)
 		case redis.Name:
 			config.Providers[i], err = redis.New(provider.ExtraFields)
 		default:
@@ -114,7 +113,7 @@ func initializeInstances(config *Config) error {
 		config.CacheProvider, err = intern.New(config.ConfigCache.ExtraFields)
 	case redis.Name:
 		config.CacheProvider, err = redis.New(config.ConfigCache.ExtraFields)
-	case "disabled":
+	case "disable", "disabled", "off":
 		config.CacheProvider, err = dummy.New(config.ConfigCache.ExtraFields)
 	default:
 		config.ConfigCache.Name = "intern"
