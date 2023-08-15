@@ -86,7 +86,7 @@ func RunGroupTests(t *testing.T, group *types.Group, container *TestContainer) {
 					require.NoError(t, err)
 					require.Empty(t, result)
 				})
-				t.Run("by uid", func(t *testing.T) {
+				t.Run("by gid", func(t *testing.T) {
 					result, err := container.GetGroup(nonExistentGID)
 					require.NoError(t, err)
 					require.Empty(t, result)
@@ -98,7 +98,7 @@ func RunGroupTests(t *testing.T, group *types.Group, container *TestContainer) {
 				t.Run("by name", func(t *testing.T) {
 					result, err := container.GetGShadow(group.Name)
 					require.NoError(t, err)
-					require.Equal(t, fmt.Sprintf("%s:%s:::::::0", group.Name, group.Passwd), result)
+					require.Equal(t, fmt.Sprintf("%s:%s::", group.Name, group.Passwd), result)
 				})
 			})
 
@@ -106,7 +106,7 @@ func RunGroupTests(t *testing.T, group *types.Group, container *TestContainer) {
 				t.Run("by name", func(t *testing.T) {
 					result, err := container.GetGShadow(nonExistentGroupName)
 					require.NoError(t, err)
-					require.Equal(t, fmt.Sprintf("%s:%s:::::::0", group.Name, group.Passwd), result)
+					require.Empty(t, result)
 				})
 			})
 		})

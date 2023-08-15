@@ -2,10 +2,11 @@ package main
 
 /*
 #include <stdlib.h>
-#include <shadow.h>
 #include <string.h>
 #include <pwd.h>
+#include <shadow.h>
 #include <grp.h>
+#include <gshadow.h>
 static size_t sizeof_char = sizeof(char*);
 */
 import "C"
@@ -76,5 +77,17 @@ func StoreGroupInGroupStruct(group *types.Group, result *C.struct_group, buffer 
 	result.gr_passwd = ptrs[1]
 	result.gr_gid = C.uint(group.Gid)
 	result.gr_mem = nil
+	return nil
+}
+
+func StoreGroupInGShadowStruct(group *types.Group, result *C.struct_sgrp, buffer *C.char, buflen C.size_t) error {
+	ptrs := copyToBuffer(buffer, buflen, group.Name, group.Passwd)
+	if len(ptrs) == 0 {
+		return errors.New("out of memory")
+	}
+	result.sg_namp = ptrs[0]
+	result.sg_passwd = ptrs[1]
+	result.sg_adm = nil
+	result.sg_mem = nil
 	return nil
 }
