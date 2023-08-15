@@ -30,11 +30,24 @@ func TestProvider(t *testing.T) {
 		},
 	}
 
+	group := types.Group{
+		Name:   "joe",
+		Passwd: "$6$.WdgkoyPbvxIDDKU$mOVy8BlNvGssTojiLDyo37S7/puNMBx53S4VAp1nhxSnV5G7bzZw42QxbcYiq4TJwReY0cBLQGc5Dt6Mnk4lg1",
+		Gid:    3000,
+	}
+
 	mux.HandleFunc("/user/uid/3000", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(user)
 	})
 	mux.HandleFunc("/user/name/joe", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(user)
+	})
+
+	mux.HandleFunc("/group/gid/3000", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(group)
+	})
+	mux.HandleFunc("/group/name/joe", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(group)
 	})
 
 	s := httptest.NewServer(mux)
@@ -68,18 +81,6 @@ gshadow:        files http
 		}
 	}()
 
-	t.Run("get user", func(t *testing.T) {
-		t.Run("known user", func(t *testing.T) {
-			result, err := container.GetUser("joe")
-			require.NoError(t, err)
-			require.Equal(t, fmt.Sprintf("%s:%s:%d:%d:%s:%s:%s", user.User, user.Passwd, user.Uid, user.Gid, user.Name, user.Dir, user.Shell), result)
-		})
-
-		t.Run("unknown user", func(t *testing.T) {
-			result, err := container.GetUser("alice")
-			require.NoError(t, err)
-			require.Empty(t, result)
-		})
-	})
-
+	testhelpers.RunUserTests(t, &user, container)
+	testhelpers.RunGroupTests(t, &group, container)
 }

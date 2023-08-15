@@ -3,6 +3,7 @@ package types
 import "context"
 
 type UIDIdentifier uint
+type GIDIdentifier uint
 
 type NameIdentifier string
 

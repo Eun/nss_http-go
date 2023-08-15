@@ -95,10 +95,10 @@ func (tc *TestContainer) Close() error {
 	return nil
 }
 
-func (tc *TestContainer) GetUser(name string) (string, error) {
+func (tc *TestContainer) getent(database, key string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	_, r, err := tc.container.Exec(ctx, []string{"getent", "passwd", name}, exec.Multiplexed())
+	_, r, err := tc.container.Exec(ctx, []string{"getent", database, key}, exec.Multiplexed())
 	if err != nil {
 		return "", fmt.Errorf("unable to exec in container: %w", err)
 	}
@@ -107,6 +107,22 @@ func (tc *TestContainer) GetUser(name string) (string, error) {
 		return "", fmt.Errorf("unable to read buffer: %w", err)
 	}
 	return strings.TrimSpace(string(buf)), nil
+}
+
+func (tc *TestContainer) GetPasswd(name string) (string, error) {
+	return tc.getent("passwd", name)
+}
+
+func (tc *TestContainer) GetShadow(name string) (string, error) {
+	return tc.getent("shadow", name)
+}
+
+func (tc *TestContainer) GetGroup(name string) (string, error) {
+	return tc.getent("group", name)
+}
+
+func (tc *TestContainer) GetGShadow(name string) (string, error) {
+	return tc.getent("gshadow", name)
 }
 
 func (tc *TestContainer) GetLogs() (string, error) {

@@ -74,7 +74,12 @@ func (f *Provider) getRequestURL(section string, identifier any) (string, error)
 			return "", errors.Wrap(err, "unable to build request url")
 		}
 		return requestURL, nil
-
+	case types.GIDIdentifier:
+		requestURL, err := url.JoinPath(f.config.URL, section, "gid", strconv.FormatUint(uint64(v), 10))
+		if err != nil {
+			return "", errors.Wrap(err, "unable to build request url")
+		}
+		return requestURL, nil
 	case types.NameIdentifier:
 		requestURL, err := url.JoinPath(f.config.URL, section, "name", string(v))
 		if err != nil {

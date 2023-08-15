@@ -1,12 +1,14 @@
 FROM golang:1.20-bookworm
-RUN --mount=type=bind,target=/go/src/github.com/Eun/nss_http,readwrite \
-    make -C /go/src/github.com/Eun/nss_http install
-
 RUN mkdir /var/run/sshd                                                     && \
     apt update                                                              && \
     apt install -y openssh-server                                           && \
     echo "AuthorizedKeysCommand /sbin/nss_http_ssh" >> /etc/ssh/sshd_config && \
     echo "AuthorizedKeysCommandUser nobody" >> /etc/ssh/sshd_config         && \
     apt clean
-
 ENTRYPOINT ["/usr/sbin/sshd", "-D", "-e"]
+ENV NSS_HTTP_DEBUG=true
+RUN --mount=type=bind,target=/go/src/github.com/Eun/nss_http,readwrite \
+    make -C /go/src/github.com/Eun/nss_http install
+
+
+
