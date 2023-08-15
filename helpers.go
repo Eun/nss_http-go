@@ -74,6 +74,6 @@ func StoreGroupInGroupStruct(group *types.Group, result *C.struct_group, buffer 
 	}
 	result.gr_name = ptrs[0]
 	result.gr_passwd = ptrs[1]
-	result.gr_gid = group.Gid
+	result.gr_gid = C.uint(group.Gid)
 	return nil
 }

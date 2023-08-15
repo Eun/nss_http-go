@@ -118,7 +118,6 @@ func (f *Provider) getKey(section string, identifier any) (string, error) {
 		if err != nil {
 			return "", errors.Wrap(err, "unable to build request url")
 		}
-
 		return requestURL, nil
 	default:
 		return "", errors.New("unknown identifier type")

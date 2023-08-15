@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-//export _nss_http_setspent
+//export _nss_http_setgrent
 func _nss_http_setgrent() C.enum_nss_status {
 	log.Debug().Msg("_nss_http_setgrent")
 	return C.NSS_STATUS_NOTFOUND
