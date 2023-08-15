@@ -19,12 +19,16 @@ type TestContainer struct {
 	ConfigFile         string
 }
 
-func NewTestContainer(nsswitchConfContents, configContents string) (*TestContainer, error) {
+func NewTestContainer(configContents string) (*TestContainer, error) {
 	nsswitchFile, err := os.CreateTemp("", "nss_http_")
 	if err != nil {
 		return nil, fmt.Errorf("unable to create temp file: %w", err)
 	}
-	if _, err := nsswitchFile.WriteString(nsswitchConfContents); err != nil {
+	if _, err := nsswitchFile.WriteString(`passwd:         files http
+group:          files http
+shadow:         files http
+gshadow:        files http
+`); err != nil {
 		return nil, fmt.Errorf("unable to write nsswitch.conf: %w", err)
 	}
 	if err := nsswitchFile.Close(); err != nil {
@@ -51,6 +55,7 @@ func NewTestContainer(nsswitchConfContents, configContents string) (*TestContain
 				}
 				return "nss_http_test:latest"
 			}(),
+			Name:         "nss_http_test",
 			ExposedPorts: []string{"22/tcp"},
 			Mounts: testcontainers.Mounts(
 				testcontainers.ContainerMount{
@@ -98,7 +103,13 @@ func (tc *TestContainer) Close() error {
 func (tc *TestContainer) getent(database, key string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	_, r, err := tc.container.Exec(ctx, []string{"getent", database, key}, exec.Multiplexed())
+
+	cmd := []string{"getent", database}
+	if key != "" {
+		cmd = append(cmd, key)
+	}
+
+	_, r, err := tc.container.Exec(ctx, cmd, exec.Multiplexed())
 	if err != nil {
 		return "", fmt.Errorf("unable to exec in container: %w", err)
 	}

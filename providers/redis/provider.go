@@ -65,6 +65,28 @@ func (f *Provider) SetUser(ctx context.Context, user *types.User) error {
 	return nil
 }
 
+func (f *Provider) GetUsers(ctx context.Context) ([]types.User, error) {
+	var users []types.User
+	iter := f.client.HScan(ctx, "users", 0, "", 10).Iterator()
+	for iter.Next(ctx) {
+		var user types.User
+		if err := json.Unmarshal([]byte(iter.Val()), &user); err != nil {
+			return nil, errors.Wrapf(err, "unable to decode cache item: %q", iter.Val())
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
+func (f *Provider) SetUsers(ctx context.Context, users []types.User) error {
+	for _, user := range users {
+		if err := f.SetUser(ctx, &user); err != nil {
+			return errors.Wrap(err, "unable to cache user")
+		}
+	}
+	return nil
+}
+
 func (f *Provider) GetGroup(ctx context.Context, identifier any) (*types.Group, error) {
 	key, err := f.getKey("groups", identifier)
 	if err != nil {
@@ -99,6 +121,28 @@ func (f *Provider) SetGroup(ctx context.Context, group *types.Group) error {
 
 		if err := f.client.Set(ctx, key, buf, time.Duration(f.config.TTL)).Err(); err != nil {
 			return errors.Wrap(err, "unable to set value")
+		}
+	}
+	return nil
+}
+
+func (f *Provider) GetGroups(ctx context.Context) ([]types.Group, error) {
+	var groups []types.Group
+	iter := f.client.HScan(ctx, "groups", 0, "", 10).Iterator()
+	for iter.Next(ctx) {
+		var group types.Group
+		if err := json.Unmarshal([]byte(iter.Val()), &group); err != nil {
+			return nil, errors.Wrapf(err, "unable to decode cache item: %q", iter.Val())
+		}
+		groups = append(groups, group)
+	}
+	return groups, nil
+}
+
+func (f *Provider) SetGroups(ctx context.Context, groups []types.Group) error {
+	for _, group := range groups {
+		if err := f.SetGroup(ctx, &group); err != nil {
+			return errors.Wrap(err, "unable to cache group")
 		}
 	}
 	return nil

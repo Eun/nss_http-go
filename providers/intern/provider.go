@@ -14,7 +14,6 @@ import (
 
 const Name = "intern"
 
-var _ types.Provider = &Provider{}
 var _ types.CacheProvider = &Provider{}
 
 type cacheUserItem struct {
@@ -74,6 +73,39 @@ func (f *Provider) SetUser(ctx context.Context, user *types.User) error {
 	return nil
 }
 
+func (f *Provider) GetUsers(ctx context.Context) ([]types.User, error) {
+	exitedPrematurely := false
+	var users []types.User
+	internalCache.userMap.Range(func(key, value any) bool {
+		item, ok := value.(cacheUserItem)
+		if !ok {
+			exitedPrematurely = true
+			return false
+		}
+
+		if time.Now().After(item.Expiry) {
+			exitedPrematurely = true
+			return false
+		}
+		users = append(users, item.User)
+		return true
+	})
+
+	if exitedPrematurely {
+		return nil, nil
+	}
+	return users, nil
+}
+
+func (f *Provider) SetUsers(ctx context.Context, users []types.User) error {
+	for _, user := range users {
+		if err := f.SetUser(ctx, &user); err != nil {
+			return errors.Wrap(err, "unable to cache user")
+		}
+	}
+	return nil
+}
+
 func (f *Provider) GetGroup(ctx context.Context, identifier any) (*types.Group, error) {
 	key, err := f.getKey(identifier)
 	if err != nil {
@@ -104,6 +136,39 @@ func (f *Provider) SetGroup(ctx context.Context, group *types.Group) error {
 			Group:  *group,
 			Expiry: time.Now().Add(time.Duration(f.config.TTL)),
 		})
+	}
+	return nil
+}
+
+func (f *Provider) GetGroups(ctx context.Context) ([]types.Group, error) {
+	exitedPrematurely := false
+	var groups []types.Group
+	internalCache.groupMap.Range(func(key, value any) bool {
+		item, ok := value.(cacheGroupItem)
+		if !ok {
+			exitedPrematurely = true
+			return false
+		}
+
+		if time.Now().After(item.Expiry) {
+			exitedPrematurely = true
+			return false
+		}
+		groups = append(groups, item.Group)
+		return true
+	})
+
+	if exitedPrematurely {
+		return nil, nil
+	}
+	return groups, nil
+}
+
+func (f *Provider) SetGroups(ctx context.Context, groups []types.Group) error {
+	for _, group := range groups {
+		if err := f.SetGroup(ctx, &group); err != nil {
+			return errors.Wrap(err, "unable to cache group")
+		}
 	}
 	return nil
 }

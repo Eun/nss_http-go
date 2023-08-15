@@ -9,22 +9,62 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var passwdDatabase DatabaseState[types.User]
+
 //export _nss_http_setpwent
 func _nss_http_setpwent() C.enum_nss_status {
 	log.Debug().Msg("_nss_http_setpwent")
+	if passwdDatabase.IsOpen {
+		return C.NSS_STATUS_UNAVAIL
+	}
+	passwdDatabase.IsOpen = true
 	return C.NSS_STATUS_SUCCESS
 }
 
 //export _nss_http_endpwent
 func _nss_http_endpwent() C.enum_nss_status {
 	log.Debug().Msg("_nss_http_endpwent")
+	if !passwdDatabase.IsOpen {
+		return C.NSS_STATUS_UNAVAIL
+	}
+	passwdDatabase.IsOpen = false
+	passwdDatabase.FetchedItems = false
+	passwdDatabase.Items = nil
+	passwdDatabase.ItemIndex = 0
 	return C.NSS_STATUS_SUCCESS
 }
 
 //export _nss_http_getpwent_r
-func _nss_http_getpwent_r(resultbuf *C.struct_passwd, buffer *C.char, buflen C.size_t, result **C.struct_passwd) C.enum_nss_status {
+func _nss_http_getpwent_r(pwbuf *C.struct_passwd, buffer *C.char, buflen C.size_t, pwbufp **C.struct_passwd) C.enum_nss_status {
 	log.Debug().Msg("_nss_http_getpwent_r")
-	return C.NSS_STATUS_NOTFOUND
+	if !passwdDatabase.IsOpen {
+		*pwbufp = nil
+		return C.NSS_STATUS_UNAVAIL
+	}
+	if !passwdDatabase.FetchedItems {
+		var err error
+		passwdDatabase.Items, err = getUsers()
+		if err != nil {
+			log.Err(err).Msg("unable to get users")
+			*pwbufp = nil
+			return C.NSS_STATUS_UNAVAIL
+		}
+	}
+
+	if passwdDatabase.ItemIndex+1 >= len(passwdDatabase.Items) {
+		*pwbufp = nil
+		return C.NSS_STATUS_NOTFOUND
+	}
+
+	// store everything in buffer
+	if err := StoreUserInPasswdStruct(&passwdDatabase.Items[passwdDatabase.ItemIndex], pwbuf, buffer, buflen); err != nil {
+		log.Err(err).Msg("unable to store user in buffer")
+		*pwbufp = nil
+		return C.NSS_STATUS_UNAVAIL
+	}
+	passwdDatabase.ItemIndex++
+	*pwbufp = pwbuf
+	return C.NSS_STATUS_SUCCESS
 }
 
 //export _nss_http_getpwnam_r

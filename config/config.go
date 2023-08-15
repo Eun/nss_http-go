@@ -7,8 +7,7 @@ import (
 	"sync"
 
 	"github.com/Eun/nss_http/providers/dummy"
-	"github.com/Eun/nss_http/providers/http/rest"
-	"github.com/Eun/nss_http/providers/http/static"
+	"github.com/Eun/nss_http/providers/http"
 	"github.com/Eun/nss_http/providers/intern"
 	"github.com/Eun/nss_http/providers/redis"
 	"github.com/Eun/nss_http/types"
@@ -19,8 +18,10 @@ import (
 const configFile = "/etc/nss_http.json"
 
 type Config struct {
-	ConfigProviders []ConfigProvider `json:"Providers"`
-	ConfigCache     ConfigCache      `json:"Cache"`
+	ConfigProviders      []ConfigProvider `json:"Providers"`
+	ConfigCache          ConfigCache      `json:"Cache"`
+	AllowListingOfUsers  bool             `json:"AllowListingOfUsers"`
+	AllowListingOfGroups bool             `json:"AllowListingOfGroups"`
 
 	Providers     []types.Provider    `json:"-"`
 	CacheProvider types.CacheProvider `json:"-"`
@@ -93,10 +94,8 @@ func initializeInstances(config *Config) error {
 	config.Providers = make([]types.Provider, len(config.ConfigProviders))
 	for i, provider := range config.ConfigProviders {
 		switch strings.ToLower(provider.Name) {
-		case static.Name:
-			config.Providers[i], err = static.New(provider.ExtraFields)
-		case rest.Name:
-			config.Providers[i], err = rest.New(provider.ExtraFields)
+		case http.Name:
+			config.Providers[i], err = http.New(provider.ExtraFields)
 		case redis.Name:
 			config.Providers[i], err = redis.New(provider.ExtraFields)
 		default:

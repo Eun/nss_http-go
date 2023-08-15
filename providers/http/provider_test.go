@@ -1,4 +1,4 @@
-package rest_test
+package http_test
 
 import (
 	"encoding/json"
@@ -42,6 +42,9 @@ func TestProvider(t *testing.T) {
 	mux.HandleFunc("/user/name/joe", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(user)
 	})
+	mux.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]types.User{user})
+	})
 
 	mux.HandleFunc("/group/gid/3000", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(group)
@@ -49,27 +52,34 @@ func TestProvider(t *testing.T) {
 	mux.HandleFunc("/group/name/joe", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(group)
 	})
+	mux.HandleFunc("/groups", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]types.Group{group})
+	})
 
 	s := httptest.NewServer(mux)
 	defer s.Close()
 	_, port, err := net.SplitHostPort(s.Listener.Addr().String())
 	require.NoError(t, err)
 
-	container, err := testhelpers.NewTestContainer(`
-passwd:         files http
-group:          files http
-shadow:         files http
-gshadow:        files http
-`, fmt.Sprintf(`
+	container, err := testhelpers.NewTestContainer(fmt.Sprintf(`
 {
 	"Providers": [{
-		"Name": "http_rest",
-		"URL": "http://host.docker.internal:%s",
+		"Name": "http",
+		"RequestURLs": {
+			"UserUID": "http://host.docker.internal:%[1]s/user/uid/",
+			"UserName": "http://host.docker.internal:%[1]s/user/name/",
+			"Users": "http://host.docker.internal:%[1]s/users",
+			"GroupUID": "http://host.docker.internal:%[1]s/group/uid/",
+			"GroupName": "http://host.docker.internal:%[1]s/group/name/",
+			"Groups": "http://host.docker.internal:%[1]s/groups"
+		},
 		"Headers": {}
 	}],
 	"Cache": {
 		"Name": "disabled"
-	}
+	},
+	"AllowListingOfUsers": true,
+	"AllowListingOfGroups": true
 }
 `, port))
 	require.NoError(t, err)

@@ -9,7 +9,6 @@ import (
 
 const Name = "dummy"
 
-var _ types.Provider = &Provider{}
 var _ types.CacheProvider = &Provider{}
 
 type Provider struct{}
@@ -26,11 +25,27 @@ func (f *Provider) SetUser(ctx context.Context, user *types.User) error {
 	return nil
 }
 
+func (f *Provider) GetUsers(ctx context.Context) ([]types.User, error) {
+	return nil, nil
+}
+
+func (f *Provider) SetUsers(ctx context.Context, users []types.User) error {
+	return nil
+}
+
 func (f *Provider) GetGroup(ctx context.Context, identifier any) (*types.Group, error) {
 	return nil, nil
 }
 
 func (f *Provider) SetGroup(ctx context.Context, user *types.Group) error {
+	return nil
+}
+
+func (f *Provider) GetGroups(ctx context.Context) ([]types.Group, error) {
+	return nil, nil
+}
+
+func (f *Provider) SetGroups(ctx context.Context, groups []types.Group) error {
 	return nil
 }
 

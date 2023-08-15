@@ -57,6 +57,42 @@ func getUser(identifer any) (*types.User, error) {
 	return user, nil
 }
 
+func getUsers() ([]types.User, error) {
+	config, err := config.Get()
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to get config")
+	}
+
+	users, err := config.CacheProvider.GetUsers(context.Background())
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to get users from cache")
+	}
+	if len(users) > 0 {
+		return users, nil
+	}
+	for _, provider := range config.Providers {
+		providerUsers, err := provider.GetUsers(context.Background())
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to get users")
+		}
+		log.Debug().
+			Str("provider", provider.Name()).
+			Any("users", providerUsers).
+			Msg("found users")
+		users = append(users, providerUsers...)
+	}
+
+	log.Debug().
+		Any("users", users).
+		Msg("found users")
+
+	if err := config.CacheProvider.SetUsers(context.Background(), users); err != nil {
+		return nil, errors.Wrap(err, "unable to add to cache")
+
+	}
+	return users, nil
+}
+
 func getGroup(identifer any) (*types.Group, error) {
 	config, err := config.Get()
 	if err != nil {

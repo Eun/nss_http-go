@@ -62,6 +62,19 @@ func RunUserTests(t *testing.T, user *types.User, container *TestContainer) {
 			})
 		})
 	})
+	t.Run("get users", func(t *testing.T) {
+		t.Run("passwd", func(t *testing.T) {
+			result, err := container.GetPasswd("")
+			require.NoError(t, err)
+			require.Empty(t, result)
+		})
+		t.Run("shadow", func(t *testing.T) {
+			result, err := container.GetShadow("")
+			require.NoError(t, err)
+			require.Equal(t, fmt.Sprintf("%s:%s:::::::0", user.User, user.Passwd), result)
+
+		})
+	})
 }
 
 func RunGroupTests(t *testing.T, group *types.Group, container *TestContainer) {
