@@ -1,21 +1,24 @@
 package http_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
-	"github.com/Eun/nss_http/testhelpers"
+	httpprovider "github.com/Eun/nss_http/providers/http"
 	"github.com/Eun/nss_http/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestProvider(t *testing.T) {
-	mux := http.NewServeMux()
+	const nonExistentUserName = types.NameIdentifier("alice")
+	const nonExistentUID = types.UIDIdentifier(5000)
+
+	const nonExistentGroupName = types.NameIdentifier("alice")
+	const nonExistentGID = types.GIDIdentifier(5000)
 
 	user := types.User{
 		User:   "joe",
@@ -36,6 +39,7 @@ func TestProvider(t *testing.T) {
 		Gid:    3000,
 	}
 
+	mux := http.NewServeMux()
 	mux.HandleFunc("/user/uid/3000", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(user)
 	})
@@ -58,39 +62,121 @@ func TestProvider(t *testing.T) {
 
 	s := httptest.NewServer(mux)
 	defer s.Close()
-	_, port, err := net.SplitHostPort(s.Listener.Addr().String())
-	require.NoError(t, err)
 
-	container, err := testhelpers.NewTestContainer(fmt.Sprintf(`
-{
-	"Providers": [{
-		"Name": "http",
-		"RequestURLs": {
-			"UserUID": "http://host.docker.internal:%[1]s/user/uid/",
-			"UserName": "http://host.docker.internal:%[1]s/user/name/",
-			"Users": "http://host.docker.internal:%[1]s/users",
-			"GroupUID": "http://host.docker.internal:%[1]s/group/uid/",
-			"GroupName": "http://host.docker.internal:%[1]s/group/name/",
-			"Groups": "http://host.docker.internal:%[1]s/groups"
-		},
-		"Headers": {}
-	}],
-	"Cache": {
-		"Name": "disabled"
-	},
-	"AllowListingOfUsers": true,
-	"AllowListingOfGroups": true
+	configsWhereAllFeaturesAreAvailable := []string{
+		fmt.Sprintf(`{
+"URLs": {
+	"UserUID": "%[1]s/user/uid/",
+	"UserName": "%[1]s/user/name/",
+	"Users": "%[1]s/users",
+	"GroupGID": "%[1]s/group/gid/",
+	"GroupName": "%[1]s/group/name/",
+	"Groups": "%[1]s/groups"
 }
-`, port))
-	require.NoError(t, err)
-	defer container.Close()
-	defer func() {
-		logs, err := container.GetLogs()
-		if err == nil && strings.TrimSpace(logs) != "" {
-			fmt.Println(logs)
-		}
-	}()
+}`, s.URL),
+		fmt.Sprintf(`{
+"URLs": {
+	"Users": "%[1]s/users",
+	"Groups": "%[1]s/groups"
+}
+}`, s.URL),
+	}
 
-	testhelpers.RunUserTests(t, &user, container)
-	testhelpers.RunGroupTests(t, &group, container)
+	for i, s := range configsWhereAllFeaturesAreAvailable {
+		t.Run(fmt.Sprintf("full featureset %d", i), func(t *testing.T) {
+			client, err := httpprovider.New(json.RawMessage(s))
+			require.NoError(t, err)
+
+			t.Run("get user", func(t *testing.T) {
+				t.Run("known user", func(t *testing.T) {
+					t.Run("by uid", func(t *testing.T) {
+						gotUser, err := client.GetUser(context.Background(), types.UIDIdentifier(user.Uid))
+						require.NoError(t, err)
+						require.Equal(t, &user, gotUser)
+					})
+					t.Run("by name", func(t *testing.T) {
+						gotUser, err := client.GetUser(context.Background(), types.NameIdentifier(user.User))
+						require.NoError(t, err)
+						require.Equal(t, &user, gotUser)
+					})
+				})
+				t.Run("unknown user", func(t *testing.T) {
+					t.Run("by uid", func(t *testing.T) {
+						gotUser, err := client.GetUser(context.Background(), nonExistentUID)
+						require.NoError(t, err)
+						require.Nil(t, gotUser)
+					})
+					t.Run("by name", func(t *testing.T) {
+						gotUser, err := client.GetUser(context.Background(), nonExistentUserName)
+						require.NoError(t, err)
+						require.Nil(t, gotUser)
+					})
+				})
+			})
+
+			t.Run("get users", func(t *testing.T) {
+				gotUsers, err := client.GetUsers(context.Background())
+				require.NoError(t, err)
+				require.Equal(t, []types.User{user}, gotUsers)
+			})
+
+			t.Run("get group", func(t *testing.T) {
+				t.Run("known group", func(t *testing.T) {
+					t.Run("by gid", func(t *testing.T) {
+						gotGroup, err := client.GetGroup(context.Background(), types.GIDIdentifier(group.Gid))
+						require.NoError(t, err)
+						require.Equal(t, &group, gotGroup)
+					})
+					t.Run("by name", func(t *testing.T) {
+						gotGroup, err := client.GetGroup(context.Background(), types.NameIdentifier(group.Name))
+						require.NoError(t, err)
+						require.Equal(t, &group, gotGroup)
+					})
+				})
+				t.Run("unknown group", func(t *testing.T) {
+					t.Run("by gid", func(t *testing.T) {
+						gotGroup, err := client.GetGroup(context.Background(), nonExistentGID)
+						require.NoError(t, err)
+						require.Nil(t, gotGroup)
+					})
+					t.Run("by name", func(t *testing.T) {
+						gotGroup, err := client.GetGroup(context.Background(), nonExistentGroupName)
+						require.NoError(t, err)
+						require.Nil(t, gotGroup)
+					})
+				})
+			})
+
+			t.Run("get groups", func(t *testing.T) {
+				gotGroups, err := client.GetGroups(context.Background())
+				require.NoError(t, err)
+				require.Equal(t, []types.Group{group}, gotGroups)
+			})
+		})
+	}
+
+	t.Run("specified only individual user and group urls", func(t *testing.T) {
+		client, err := httpprovider.New(json.RawMessage(fmt.Sprintf(`{
+"URLs": {
+	"UserUID": "%[1]s/user/uid/",
+	"UserName": "%[1]s/user/name/",
+	"GroupGID": "%[1]s/group/gid/",
+	"GroupName": "%[1]s/group/name/"
+}
+}`, s.URL)))
+		require.NoError(t, err)
+
+		t.Run("get users", func(t *testing.T) {
+			gotUsers, err := client.GetUsers(context.Background())
+			require.NoError(t, err)
+			require.Nil(t, gotUsers)
+		})
+
+		t.Run("get groups", func(t *testing.T) {
+			gotGroups, err := client.GetGroups(context.Background())
+			require.NoError(t, err)
+			require.Nil(t, gotGroups)
+		})
+	})
+
 }

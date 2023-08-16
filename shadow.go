@@ -9,23 +9,57 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var shadowDatabase DatabaseState[types.User]
+
 //export _nss_http_setspent
 func _nss_http_setspent() C.enum_nss_status {
 	log.Debug().Msg("_nss_http_setspent")
-	return C.NSS_STATUS_NOTFOUND
+	if shadowDatabase.IsOpen {
+		return C.NSS_STATUS_UNAVAIL
+	}
+	shadowDatabase.IsOpen = true
+	return C.NSS_STATUS_SUCCESS
 }
 
 //export _nss_http_endspent
 func _nss_http_endspent() C.enum_nss_status {
 	log.Debug().Msg("_nss_http_endspent")
-	return C.NSS_STATUS_NOTFOUND
+	if !shadowDatabase.IsOpen {
+		return C.NSS_STATUS_UNAVAIL
+	}
+	shadowDatabase.IsOpen = false
+	shadowDatabase.FetchedItems = false
+	shadowDatabase.Items = nil
+	shadowDatabase.ItemIndex = 0
+	return C.NSS_STATUS_SUCCESS
 }
 
-//
 //export _nss_http_getspent_r
-func _nss_http_getspent_r(resultbuf *C.struct_spwd, buffer *C.char, buflen C.size_t, result **C.struct_spwd) C.enum_nss_status {
+func _nss_http_getspent_r(spbuf *C.struct_spwd, buffer *C.char, buflen C.size_t) C.enum_nss_status {
 	log.Debug().Msg("_nss_http_getspent_r")
-	return C.NSS_STATUS_NOTFOUND
+	if !shadowDatabase.IsOpen {
+		return C.NSS_STATUS_UNAVAIL
+	}
+	if !shadowDatabase.FetchedItems {
+		var err error
+		shadowDatabase.Items, err = getUsers()
+		if err != nil {
+			log.Err(err).Msg("unable to get users")
+			return C.NSS_STATUS_UNAVAIL
+		}
+	}
+
+	if shadowDatabase.ItemIndex+1 > len(shadowDatabase.Items) {
+		return C.NSS_STATUS_NOTFOUND
+	}
+
+	// store everything in buffer
+	if err := StoreUserInSpwdStruct(&shadowDatabase.Items[shadowDatabase.ItemIndex], spbuf, buffer, buflen); err != nil {
+		log.Err(err).Msg("unable to store user in buffer")
+		return C.NSS_STATUS_UNAVAIL
+	}
+	shadowDatabase.ItemIndex++
+	return C.NSS_STATUS_SUCCESS
 }
 
 //export _nss_http_getspnam_r

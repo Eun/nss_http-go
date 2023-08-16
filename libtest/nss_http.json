@@ -1,0 +1,12 @@
+{
+  "Providers": [{
+    "Name": "file",
+    "Users": "/etc/nss_http/users.json",
+    "Groups": "/etc/nss_http/groups.json"
+  }],
+  "Cache": {
+    "Name": "mem"
+  },
+  "AllowListingOfUsers": true,
+  "AllowListingOfGroups": true
+}

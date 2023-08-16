@@ -17,27 +17,28 @@ import (
 	"github.com/pkg/errors"
 )
 
-func copyToBuffer(buffer *C.char, buflen C.size_t, parts ...string) []*C.char {
-	buf := buffer
+func copyToBuffer(buffer *C.char, buflen C.size_t, parts ...string) ([]*C.char, C.size_t) {
+	var writtenBytes C.size_t
 	ptrs := make([]*C.char, len(parts))
 	for i, part := range parts {
 		cs := C.CString(part)
-		size := C.sizeof_char * (C.strlen(cs) + 1)
-		if size > buflen {
+		strSize := C.sizeof_char * C.strlen(cs)
+		allocSize := strSize + 1 // + NULL terminator
+		if allocSize > buflen-writtenBytes {
 			C.free(unsafe.Pointer(cs))
-			return nil
+			return nil, writtenBytes
 		}
-		ptrs[i] = buf
-		C.memcpy(unsafe.Pointer(buf), unsafe.Pointer(cs), size)
+		ptrs[i] = (*C.char)(unsafe.Add(unsafe.Pointer(buffer), int(writtenBytes)))
+		C.memcpy(unsafe.Pointer(ptrs[i]), unsafe.Pointer(cs), strSize)    // write string
+		C.memset(unsafe.Add(unsafe.Pointer(ptrs[i]), int(strSize)), 0, 1) // write NULL terminator
 		C.free(unsafe.Pointer(cs))
-		buf = (*C.char)(unsafe.Add(unsafe.Pointer(buf), size))
-		buflen -= size
+		writtenBytes += allocSize
 	}
-	return ptrs
+	return ptrs, writtenBytes
 }
 
 func StoreUserInPasswdStruct(user *types.User, result *C.struct_passwd, buffer *C.char, buflen C.size_t) error {
-	ptrs := copyToBuffer(buffer, buflen, user.User, user.Passwd, user.Name, user.Dir, user.Shell)
+	ptrs, _ := copyToBuffer(buffer, buflen, user.User, user.Passwd, user.Name, user.Dir, user.Shell)
 	if len(ptrs) == 0 {
 		return errors.New("out of memory")
 	}
@@ -52,7 +53,7 @@ func StoreUserInPasswdStruct(user *types.User, result *C.struct_passwd, buffer *
 }
 
 func StoreUserInSpwdStruct(user *types.User, result *C.struct_spwd, buffer *C.char, buflen C.size_t) error {
-	ptrs := copyToBuffer(buffer, buflen, user.User, user.Passwd)
+	ptrs, _ := copyToBuffer(buffer, buflen, user.User, user.Passwd)
 	if len(ptrs) == 0 {
 		return errors.New("out of memory")
 	}
@@ -69,19 +70,30 @@ func StoreUserInSpwdStruct(user *types.User, result *C.struct_spwd, buffer *C.ch
 }
 
 func StoreGroupInGroupStruct(group *types.Group, result *C.struct_group, buffer *C.char, buflen C.size_t) error {
-	ptrs := copyToBuffer(buffer, buflen, group.Name, group.Passwd)
+	ptrs, writtenBytes := copyToBuffer(buffer, buflen, append([]string{group.Name, group.Passwd}, group.GroupMembers...)...)
 	if len(ptrs) == 0 {
 		return errors.New("out of memory")
 	}
+	// we also need to write a NULL terminator for the gr_mem vector
+	if buflen-writtenBytes <= 0 {
+		return errors.New("out of memory")
+	}
+	buf := (*C.char)(unsafe.Add(unsafe.Pointer(buffer), int(writtenBytes)))
+	C.memset(unsafe.Pointer(buf), 0, 1) // write NULL
+
 	result.gr_name = ptrs[0]
 	result.gr_passwd = ptrs[1]
 	result.gr_gid = C.uint(group.Gid)
-	result.gr_mem = nil
+	if len(group.GroupMembers) == 0 {
+		result.gr_mem = &buf
+	} else {
+		result.gr_mem = &ptrs[2]
+	}
 	return nil
 }
 
 func StoreGroupInGShadowStruct(group *types.Group, result *C.struct_sgrp, buffer *C.char, buflen C.size_t) error {
-	ptrs := copyToBuffer(buffer, buflen, group.Name, group.Passwd)
+	ptrs, _ := copyToBuffer(buffer, buflen, group.Name, group.Passwd)
 	if len(ptrs) == 0 {
 		return errors.New("out of memory")
 	}

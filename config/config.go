@@ -7,8 +7,9 @@ import (
 	"sync"
 
 	"github.com/Eun/nss_http/providers/dummy"
+	"github.com/Eun/nss_http/providers/file"
 	"github.com/Eun/nss_http/providers/http"
-	"github.com/Eun/nss_http/providers/intern"
+	"github.com/Eun/nss_http/providers/mem"
 	"github.com/Eun/nss_http/providers/redis"
 	"github.com/Eun/nss_http/types"
 	"github.com/pkg/errors"
@@ -96,6 +97,8 @@ func initializeInstances(config *Config) error {
 		switch strings.ToLower(provider.Name) {
 		case http.Name:
 			config.Providers[i], err = http.New(provider.ExtraFields)
+		case file.Name:
+			config.Providers[i], err = file.New(provider.ExtraFields)
 		case redis.Name:
 			config.Providers[i], err = redis.New(provider.ExtraFields)
 		default:
@@ -108,15 +111,15 @@ func initializeInstances(config *Config) error {
 	}
 
 	switch strings.ToLower(config.ConfigCache.Name) {
-	case intern.Name:
-		config.CacheProvider, err = intern.New(config.ConfigCache.ExtraFields)
 	case redis.Name:
 		config.CacheProvider, err = redis.New(config.ConfigCache.ExtraFields)
+	case mem.Name:
+		config.CacheProvider, err = mem.New(config.ConfigCache.ExtraFields)
 	case "disable", "disabled", "off":
 		config.CacheProvider, err = dummy.New(config.ConfigCache.ExtraFields)
 	default:
-		config.ConfigCache.Name = "intern"
-		config.CacheProvider, err = intern.New(config.ConfigCache.ExtraFields)
+		config.ConfigCache.Name = mem.Name
+		config.CacheProvider, err = mem.New(config.ConfigCache.ExtraFields)
 	}
 	if err != nil {
 		return errors.Wrapf(err, "unable to create cache provider `%s'", config.ConfigCache.Name)

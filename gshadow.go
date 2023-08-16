@@ -9,23 +9,57 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var gshadowDatabase DatabaseState[types.Group]
+
 //export _nss_http_setsgent
 func _nss_http_setsgent() C.enum_nss_status {
 	log.Debug().Msg("_nss_http_setsgent")
-	return C.NSS_STATUS_NOTFOUND
+	if gshadowDatabase.IsOpen {
+		return C.NSS_STATUS_UNAVAIL
+	}
+	gshadowDatabase.IsOpen = true
+	return C.NSS_STATUS_SUCCESS
 }
 
 //export _nss_http_endsgent
 func _nss_http_endsgent() C.enum_nss_status {
 	log.Debug().Msg("_nss_http_endsgent")
-	return C.NSS_STATUS_NOTFOUND
+	if !gshadowDatabase.IsOpen {
+		return C.NSS_STATUS_UNAVAIL
+	}
+	gshadowDatabase.IsOpen = false
+	gshadowDatabase.FetchedItems = false
+	gshadowDatabase.Items = nil
+	gshadowDatabase.ItemIndex = 0
+	return C.NSS_STATUS_SUCCESS
 }
 
-//
 //export _nss_http_getsgent_r
-func _nss_http_getsgent_r(resultbuf *C.struct_sgrp, buffer *C.char, buflen C.size_t, result **C.struct_sgrp) C.enum_nss_status {
+func _nss_http_getsgent_r(sgbuf *C.struct_sgrp, buffer *C.char, buflen C.size_t) C.enum_nss_status {
 	log.Debug().Msg("_nss_http_getsgent_r")
-	return C.NSS_STATUS_NOTFOUND
+	if !gshadowDatabase.IsOpen {
+		return C.NSS_STATUS_UNAVAIL
+	}
+	if !gshadowDatabase.FetchedItems {
+		var err error
+		gshadowDatabase.Items, err = getGroups()
+		if err != nil {
+			log.Err(err).Msg("unable to get groups")
+			return C.NSS_STATUS_UNAVAIL
+		}
+	}
+
+	if gshadowDatabase.ItemIndex+1 > len(gshadowDatabase.Items) {
+		return C.NSS_STATUS_NOTFOUND
+	}
+
+	// store everything in buffer
+	if err := StoreGroupInGShadowStruct(&gshadowDatabase.Items[gshadowDatabase.ItemIndex], sgbuf, buffer, buflen); err != nil {
+		log.Err(err).Msg("unable to store user in buffer")
+		return C.NSS_STATUS_UNAVAIL
+	}
+	gshadowDatabase.ItemIndex++
+	return C.NSS_STATUS_SUCCESS
 }
 
 //export _nss_http_getsgnam_r

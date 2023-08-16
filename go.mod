@@ -9,6 +9,7 @@ require (
 	github.com/rs/zerolog v1.30.0
 	github.com/stretchr/testify v1.8.4
 	github.com/testcontainers/testcontainers-go v0.23.0
+	golang.org/x/crypto v0.12.0
 )
 
 require (

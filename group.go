@@ -9,23 +9,57 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var groupDatabase DatabaseState[types.Group]
+
 //export _nss_http_setgrent
 func _nss_http_setgrent() C.enum_nss_status {
 	log.Debug().Msg("_nss_http_setgrent")
-	return C.NSS_STATUS_NOTFOUND
+	if groupDatabase.IsOpen {
+		return C.NSS_STATUS_UNAVAIL
+	}
+	groupDatabase.IsOpen = true
+	return C.NSS_STATUS_SUCCESS
 }
 
 //export _nss_http_endgrent
 func _nss_http_endgrent() C.enum_nss_status {
 	log.Debug().Msg("_nss_http_endgrent")
-	return C.NSS_STATUS_NOTFOUND
+	if !groupDatabase.IsOpen {
+		return C.NSS_STATUS_UNAVAIL
+	}
+	groupDatabase.IsOpen = false
+	groupDatabase.FetchedItems = false
+	groupDatabase.Items = nil
+	groupDatabase.ItemIndex = 0
+	return C.NSS_STATUS_SUCCESS
 }
 
-//
 //export _nss_http_getgrent_r
-func _nss_http_getgrent_r(resultbuf *C.struct_group, buffer *C.char, buflen C.size_t, result **C.struct_group) C.enum_nss_status {
+func _nss_http_getgrent_r(grbuf *C.struct_group, buffer *C.char, buflen C.size_t) C.enum_nss_status {
 	log.Debug().Msg("_nss_http_getgrent_r")
-	return C.NSS_STATUS_NOTFOUND
+	if !groupDatabase.IsOpen {
+		return C.NSS_STATUS_UNAVAIL
+	}
+	if !groupDatabase.FetchedItems {
+		var err error
+		groupDatabase.Items, err = getGroups()
+		if err != nil {
+			log.Err(err).Msg("unable to get groups")
+			return C.NSS_STATUS_UNAVAIL
+		}
+	}
+
+	if groupDatabase.ItemIndex+1 > len(groupDatabase.Items) {
+		return C.NSS_STATUS_NOTFOUND
+	}
+
+	// store everything in buffer
+	if err := StoreGroupInGroupStruct(&groupDatabase.Items[groupDatabase.ItemIndex], grbuf, buffer, buflen); err != nil {
+		log.Err(err).Msg("unable to store user in buffer")
+		return C.NSS_STATUS_UNAVAIL
+	}
+	groupDatabase.ItemIndex++
+	return C.NSS_STATUS_SUCCESS
 }
 
 //export _nss_http_getgrnam_r

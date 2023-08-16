@@ -1,0 +1,10 @@
+28c28
+< #LogLevel INFO
+---
+> LogLevel DEBUG3
+45,46c45,46
+< #AuthorizedKeysCommand none
+< #AuthorizedKeysCommandUser nobody
+---
+> AuthorizedKeysCommand /sbin/nss_http_sshkey
+> AuthorizedKeysCommandUser nobody

@@ -3,12 +3,12 @@ package http
 import "github.com/Eun/nss_http/types"
 
 type Config struct {
-	RequestUrls    RequestUrls       `json:"RequestUrls"`
+	URLs           URLs              `json:"URLs"`
 	RequestTimeout types.Duration    `json:"RequestTimeout"`
 	Headers        map[string]string `json:"Headers"`
 }
 
-type RequestUrls struct {
+type URLs struct {
 	Users    string `json:"Users"`
 	UserUID  string `json:"UserUID"`
 	UserName string `json:"UserName"`

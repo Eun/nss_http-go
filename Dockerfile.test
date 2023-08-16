@@ -1,14 +1,17 @@
 FROM golang:1.20-bookworm
 RUN mkdir /var/run/sshd                                                     && \
     apt update                                                              && \
-    apt install -y openssh-server                                           && \
-    echo "AuthorizedKeysCommand /sbin/nss_http_ssh" >> /etc/ssh/sshd_config && \
-    echo "AuthorizedKeysCommandUser nobody" >> /etc/ssh/sshd_config         && \
-    apt clean
+    apt install -y openssh-server members patch                             && \
+    apt clean autoclean                                                     && \
+    rm -rf /var/lib/{apt,dpkg,cache,log}/                                   && \
+    touch /var/log/nss_http.log                                             && \
+    chmod 0777 /var/log/nss_http.log
+RUN --mount=type=bind,source=libtest/nsswitch.conf.patch,target=/patch/nsswitch.conf.patch,readonly \
+    patch /etc/nsswitch.conf /patch/nsswitch.conf.patch
+RUN --mount=type=bind,source=libtest/sshd_config.patch,target=/patch/sshd_config.patch,readonly \
+    patch /etc/ssh/sshd_config /patch/sshd_config.patch
 ENTRYPOINT ["/usr/sbin/sshd", "-D", "-e"]
+
 ENV NSS_HTTP_DEBUG=true
 RUN --mount=type=bind,target=/go/src/github.com/Eun/nss_http,readwrite \
-    make -C /go/src/github.com/Eun/nss_http install
-
-
-
+    FORCE_DEBUG_LOG=true make -C /go/src/github.com/Eun/nss_http install

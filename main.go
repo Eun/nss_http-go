@@ -13,6 +13,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var ForceDebugLog string
+
 type flushWriter struct {
 	file string
 }
@@ -41,7 +43,7 @@ func getLogFilePath() string {
 func init() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Logger.Level(zerolog.InfoLevel)
-	if os.Getenv("NSS_HTTP_DEBUG") != "" {
+	if os.Getenv("NSS_HTTP_DEBUG") != "" || ForceDebugLog != "" {
 		log.Logger = log.Logger.Level(zerolog.DebugLevel)
 	}
 	logWriter := io.Discard
@@ -58,6 +60,7 @@ func usage() {
 }
 
 func main() {
+	log.Debug().Strs("args", os.Args).Msg("called main")
 	if len(os.Args) == 0 {
 		fmt.Println("critical error")
 		os.Exit(1)
@@ -72,6 +75,8 @@ func main() {
 		args = args[1:]
 	}
 
+	log.Debug().Strs("args", args).Msg("parsed args")
+
 	if len(args) == 0 {
 		fmt.Println("invalid or missing arguments")
 		usage()
@@ -80,6 +85,7 @@ func main() {
 	}
 	switch args[0] {
 	case "sshkey":
+		log.Debug().Strs("args", args).Msg("executing sshkey")
 		if len(args) != 2 {
 			fmt.Println("invalid or missing arguments")
 			usage()

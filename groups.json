@@ -1,0 +1,14 @@
+[
+  {
+    "Name": "joe",
+    "Passwd": "",
+    "Gid": 3000,
+    "GroupMembers": []
+  },
+  {
+    "Name": "admins",
+    "Passwd": "",
+    "Gid": 6000,
+    "GroupMembers": ["joe"]
+  }
+]

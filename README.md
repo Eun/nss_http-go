@@ -17,16 +17,20 @@ Name Service Switch Service that uses an http JSON backend to authenticate users
    {
      "Providers": [
        {
-         "Name": "http_static",
-         "UsersURL": "http://localhost:8000/users.json",
-         "GroupsURL": "http://localhost:8000/groups.json",
+         "Name": "http",
+         "URLs": {
+           "Users": "http://localhost:8000/users.json",
+           "Groups": "http://localhost:8000/groups.json"
+         },
          "RequestTimeout": "1m",
          "Headers": {}
        }
      ],
      "Cache": {
        "Name": "disabled"
-     }
+     },
+     "AllowListingOfUsers": false,
+     "AllowListingOfGroups": false
    }
    ```
 6. Adjust `/etc/nsswitch.conf` to include `http` for `passwd`, `shadow` and `group`:
@@ -35,20 +39,20 @@ Name Service Switch Service that uses an http JSON backend to authenticate users
    passwd:         compat http
    group:          compat http
    shadow:         compat http
-   gshadow:        files
+   gshadow:        files http
    ...
    ```
-7. Test the functionality using getent passwd <username>
+7. Test the functionality using `getent passwd <username>`
 
 ### SSH Authentication
 It is possible to add ssh authentication to the system by altering the `sshd_config`:
 ```
-AuthorizedKeysCommand /sbin/nss_http_ssh
+AuthorizedKeysCommand /sbin/nss_http_sshkey
 AuthorizedKeysCommandUser nobody
 ```
 
 ### Troubleshooting
-nss_http will write a log file to `/var/log/nss_http.log`.  
+_nss_http_ will write a log file to `/var/log/nss_http.log`.  
 You can change the log file path by specifying `NSS_HTTP_LOG_FILE`,  
 setting it to `disabled` will disable the log file.
 (notice you could also use `/dev/stdout` or `/dev/stderr` as a value).  
@@ -57,53 +61,138 @@ You can also enable debug logging by setting `NSS_HTTP_DEBUG` to `true`.
 ## Configuration
 Configuration lives at `/etc/nss_http.json`.  
 It is an ordinary json file that specifies the providers to use to look up 
-users and groups.  
-Notice that you can specify multiple providers, but only one cache provider.  
-nss_http will always follow the order of the specified providers to look up users and groups, however, it will always
-try to lookup users and groups by cache first.
+users and groups.
 ```json
 {
   "Providers": [
     Provider...
   ],
-  "Cache": Cache
+  "Cache": Cache,
+  "AllowListingOfUsers": false,
+  "AllowListingOfGroups": false
 }
 ```
+Notice that you can specify multiple providers, but only one cache provider.  
+_nss_http_ will always follow the order of the specified providers to look up users and groups, however, it will always
+try to lookup users and groups by cache first.
+
+You can disallow the listing of all users and groups, this is especially useful if
+you deal with a lot of users and groups. Or only have a http server that returns individual
+users and groups.
+
+By default, all passwords need to be hashed upfront in the [crypt(3)](https://en.wikipedia.org/wiki/Crypt_(C)) format:
+```
+$<id>[$<param>=<value>(,<param>=<value>)*][$<salt>[$<hash>]]
+```
+
+Depending on your system, you can use `openssl passwd -6` to hash the passwords upfront.
+
 
 ## Providers
-### http_static
-Fetch [users.json](users.json) and [groups.json](groups.json) from a server and
-then use that to lookup users and groups.
+### http
+The http provider allows you to lookup users and groups using http.  
+You can either specify only two endpoints pointing to a [users.json](users.json) and [groups.json](groups.json) file.  
+Or point directly to individual resources. (more in the example section).
+
+You could also specify headers in the `headers` section, use that to specify a token using
+the `Authorization` header or similar.
+
 #### Example Configuration
+##### A list of users and groups
+In this example we only point to a list of users and groups,
+_nss_http_ will automatically pull the correct user and group outside of this list.
 ```json
 {
   "Providers": [
     {
-      "Name": "http_static",
-      "UsersURL": "http://localhost:8000/users.json", 
-      "GroupsURL": "http://localhost:8000/groups.json",
+      "Name": "http",
+      "URLs": {
+         "Users": "http://localhost:800/users.json",
+         "Groups": "http://localhost:800/groups.json"
+      },
       "RequestTimeout": "1m",
       "Headers": {}
     }
-  ]
+  ],
+  "Cache": {
+    "Name": "disabled"
+  },
+  "AllowListingOfUsers": false,
+  "AllowListingOfGroups": false
 }
 ```
 
-### http_rest
-Lookup a specific user or group by a REST api.
+##### Specific endpoints for individual users/groups
+A more resource efficient variant is to directly point to individual resources.  
+When a lookup will be performed the id or name of the user/group will be appended.
+In this example `getent passwd joe` will result calling `http://localhost:800/user/name/joe`.
+```json
+{
+  "Providers": [
+    {
+      "Name": "http",
+      "URLs": {
+         "UserUID": "http://localhost:800/user/uid/",
+         "UserName": "http://localhost:800/user/name/",
+         "GroupGID": "http://localhost:800/group/gid/",
+         "GroupName": "http://localhost:800/group/name/"
+      },
+      "RequestTimeout": "1m",
+      "Headers": {}
+    }
+  ],
+  "Cache": {
+    "Name": "disabled"
+  },
+  "AllowListingOfUsers": false,
+  "AllowListingOfGroups": false
+}
+```
+> Notice that a list endpoint is required when you want to allow listing of users and groups
+> using `AllowListingOfUsers` and `AllowListingOfGroups`.
 
-#### Endpoints that will be called
-Based on the use case following endpoints will be called:
+##### Specify both, a list and individual endpoints
+You could also specify the list and individual endpoints.  
+_nss_http_ will lookup specific users/groups via the individual endpoints,
+list requests will go directly to the users/groups endpoint.
+```json
+{
+  "Providers": [
+    {
+      "Name": "http",
+      "URLs": {
+         "Users": "http://localhost:800/users",
+         "UserUID": "http://localhost:800/user/uid/",
+         "UserName": "http://localhost:800/user/name/",
+         "Groups": "http://localhost:800/groups",
+         "GroupGID": "http://localhost:800/group/gid/",
+         "GroupName": "http://localhost:800/group/name/"
+      },
+      "RequestTimeout": "1m",
+      "Headers": {}
+    }
+  ],
+  "Cache": {
+    "Name": "disabled"
+  },
+  "AllowListingOfUsers": false,
+  "AllowListingOfGroups": false
+}
+```
+> Notice that a list endpoint is required when you want to allow listing of users and groups
+> using `AllowListingOfUsers` and `AllowListingOfGroups`.
 
-| use case               | request url                   |
-|------------------------|-------------------------------|
-| lookup a user by name  | GET `<url>/user/name/<name>`  |
-| lookup a user by uid   | GET `<url>/user/uid/<uid>`    |
-| lookup a group by name | GET `<url>/group/name/<name>` |
-| lookup a group by uid  | GET `<url>/group/uid/<uid>`   |
+#### Required Server Responses
+##### User List Response
+For the `Users` endpoint a list of users is expected as a result.
+You can see an example in the [users.json](users.json) file.
 
-#### user response
-When a user is requested, make sure to respond with http status code `200` and return json content:
+##### Groups List Response
+For the `Groups` endpoint a list of groups is expected as a result.
+You can see an example in the [groups.json](groups.json) file.
+
+#### UserUID / UserName Response
+When a specific user is requested, make sure to respond with http status code `200` and return json content:
 ```json
 {
   "User": "joe",
@@ -117,34 +206,21 @@ When a user is requested, make sure to respond with http status code `200` and r
 ```
 If you want to signal that the requested user does not exist return the http status code `404`.
 
-#### group response
+#### GroupUID / GroupName Response
 When a group is requested, make sure to respond with http status code `200` and return json content:
+
 ```json
 {
-  "User": "joe",
-  "Passwd": "$6$.WdgkoyPbvxIDDKU$mOVy8BlNvGssTojiLDyo37S7/puNMBx53S4VAp1nhxSnV5G7bzZw42QxbcYiq4TJwReY0cBLQGc5Dt6Mnk4lg1",
-  "Name": "Joe Doe",
-  "Dir": "/home/joe",
-  "Shell": "/bin/bash",
-  "Uid": 3000,
-  "Gid": 3000
+   "Name": "admins",
+   "Passwd": "",
+   "Gid": 6000,
+   "GroupMembers": ["joe"]
 }
 ```
 If you want to signal that the requested group does not exist return the http status code `404`.
 
-#### Example Configuration
-```json
-{
-  "Providers": [
-    {
-      "Name": "http_rest",
-      "URL": "http://localhost:8000/",
-      "RequestTimeout": "1m",
-      "Headers": {}
-    }
-  ]
-}
-```
+> Notice that in `GroupMembers` you only specify users which will have this group as a secondary group, the primary
+> group information is already present in the user data.
 
 ### redis
 Lookup a specific user or group by using redis key value.
@@ -152,12 +228,12 @@ Lookup a specific user or group by using redis key value.
 #### Organization of data
 Based on the use case following keys will be used:
 
-| use case               | key                 |
-|------------------------|---------------------|
-| lookup a user by name  | `user/name/<name>`  |
-| lookup a user by uid   | `user/uid/<uid>`    |
-| lookup a group by name | `group/name/<name>` |
-| lookup a group by uid  | `group/uid/<uid>`   |
+| use case               | key                  |
+|------------------------|----------------------|
+| lookup a user by name  | `users/name/<name>`  |
+| lookup a user by uid   | `users/id/<uid>`     |
+| lookup a group by name | `groups/name/<name>` |
+| lookup a group by uid  | `groups/id/<gid>`    |
 
 Notice that the data must be encoded in json.
 
@@ -169,7 +245,34 @@ Notice that the data must be encoded in json.
       "Name": "redis",
       "URL": "redis://myusername:mypassword@localhost:6379"
     }
-  ]
+  ],
+  "Cache": {
+    "Name": "disabled"
+  },
+  "AllowListingOfUsers": false,
+  "AllowListingOfGroups": false
+}
+```
+
+### file
+The file provider allows you to lookup users and groups using a json file.  
+You need to specify a [users.json](users.json) and [groups.json](groups.json) file.  
+
+#### Example Configuration
+```json
+{
+  "Providers": [
+    {
+      "Name": "file",
+      "Users": "/etc/nss_http/users.json",
+      "Groups": "/etc/nss_http/groups.json"
+    }
+  ],
+  "Cache": {
+    "Name": "disabled"
+  },
+  "AllowListingOfUsers": false,
+  "AllowListingOfGroups": false
 }
 ```
 
@@ -181,19 +284,6 @@ Disable cache entirely, no data will be cached.
 {
   "Cache": {
      "Name": "disabled"
-  }
-}
-```
-
-### intern
-Use internal memory cache.  
-This is still not sufficient for production systems since nss_http's memory will be freed after a application is done.
-#### Example Configuration
-```json
-{
-  "Cache": {
-     "Name": "intern",
-     "TTL": "1m"
   }
 }
 ```
@@ -215,3 +305,7 @@ Uses the same format as the redis provider.
 }
 ```
 
+## Partial Usage
+You don't have to use the users and groups functionality of _nss_http_.
+Simply remove `http` from the `nsswitch.conf` file where you don't want to use it. 
+And remove the urls in the `http` provider.

@@ -15,7 +15,7 @@ type Provider interface {
 	GetGroup(ctx context.Context, identifier any) (*Group, error)
 	GetGroups(ctx context.Context) ([]Group, error)
 	Name() string
-	// GetGroup(identifier any) (*Group, error)
+	// GetGroup(identifier any) (*Item, error)
 }
 
 type CacheProvider interface {

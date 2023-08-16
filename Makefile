@@ -1,5 +1,10 @@
+
+ifdef FORCE_DEBUG_LOG
+ADDITIONAL_LD_FLAGS = -X main.ForceDebugLog=true
+endif
+
 all:
-	go build -o dist/libnss_http.so -buildmode=c-shared -ldflags="-extldflags '-Wl,-soname,libnss_http.so.2' -s -w"
+	go build -o dist/libnss_http.so -buildmode=c-shared -ldflags="-extldflags '-Wl,-soname,libnss_http.so.2' -s -w ${ADDITIONAL_LD_FLAGS}"
 	go build -o dist/nss_http
 
 install: all
@@ -7,9 +12,18 @@ install: all
 	cp dist/nss_http /sbin/nss_http
 	ln -s /sbin/nss_http /sbin/nss_http_sshkey
 
-build-test-container:
+test-container:
 	docker build -t nss_http_test:latest -f Dockerfile.test .
 
-test: build-test-container
+interactive-test-container: test-container
+	docker run --rm -ti \
+	--entrypoint /bin/bash \
+	--publish 2222:22 \
+	--volume ${PWD}/libtest/nss_http.json:/etc/nss_http.json:ro \
+	--volume ${PWD}/users.json:/etc/nss_http/users.json:ro \
+	--volume ${PWD}/groups.json:/etc/nss_http/groups.json:ro \
+	nss_http_test:latest
+
+test: test-container
 	go test -v ./...
 

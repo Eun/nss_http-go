@@ -35,10 +35,9 @@ func _nss_http_endpwent() C.enum_nss_status {
 }
 
 //export _nss_http_getpwent_r
-func _nss_http_getpwent_r(pwbuf *C.struct_passwd, buffer *C.char, buflen C.size_t, pwbufp **C.struct_passwd) C.enum_nss_status {
+func _nss_http_getpwent_r(pwbuf *C.struct_passwd, buffer *C.char, buflen C.size_t) C.enum_nss_status {
 	log.Debug().Msg("_nss_http_getpwent_r")
 	if !passwdDatabase.IsOpen {
-		*pwbufp = nil
 		return C.NSS_STATUS_UNAVAIL
 	}
 	if !passwdDatabase.FetchedItems {
@@ -46,24 +45,20 @@ func _nss_http_getpwent_r(pwbuf *C.struct_passwd, buffer *C.char, buflen C.size_
 		passwdDatabase.Items, err = getUsers()
 		if err != nil {
 			log.Err(err).Msg("unable to get users")
-			*pwbufp = nil
 			return C.NSS_STATUS_UNAVAIL
 		}
 	}
 
-	if passwdDatabase.ItemIndex+1 >= len(passwdDatabase.Items) {
-		*pwbufp = nil
+	if passwdDatabase.ItemIndex+1 > len(passwdDatabase.Items) {
 		return C.NSS_STATUS_NOTFOUND
 	}
 
 	// store everything in buffer
 	if err := StoreUserInPasswdStruct(&passwdDatabase.Items[passwdDatabase.ItemIndex], pwbuf, buffer, buflen); err != nil {
 		log.Err(err).Msg("unable to store user in buffer")
-		*pwbufp = nil
 		return C.NSS_STATUS_UNAVAIL
 	}
 	passwdDatabase.ItemIndex++
-	*pwbufp = pwbuf
 	return C.NSS_STATUS_SUCCESS
 }
 
