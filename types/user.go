@@ -10,3 +10,15 @@ type User struct {
 	Gid      uint     `json:"Gid"`
 	AuthKeys []string `json:"AuthKeys"`
 }
+
+func (u *User) SetShadowPasswd() {
+	u.Passwd = "x"
+}
+
+type Users []User
+
+func (u Users) SetShadowPasswd() {
+	for i := range u {
+		u[i].SetShadowPasswd()
+	}
+}

@@ -1,114 +1,164 @@
 package main
 
 // #include <stdlib.h>
+// #include <errno.h>
 // #include <nss.h>
-// #include <shadow.h>
+// #include <pwd.h>
 import "C"
 import (
 	"github.com/Eun/nss_http/types"
+	"github.com/Eun/nss_http/utils"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
 
-var passwdDatabase DatabaseState[types.User]
+var passwdDatabase utils.Database[types.User]
 
 //export _nss_http_setpwent
-func _nss_http_setpwent() C.enum_nss_status {
-	log.Debug().Msg("_nss_http_setpwent")
-	if passwdDatabase.IsOpen {
-		return C.NSS_STATUS_UNAVAIL
-	}
-	passwdDatabase.IsOpen = true
-	return C.NSS_STATUS_SUCCESS
+func _nss_http_setpwent() (status C.enum_nss_status) {
+	log.Trace().Msg("setpwent")
+	defer log.Debug().
+		Int32("status", status).
+		Int("errno", GetErrNo()).
+		Msg("setpwent")
+	return errorToNSSStatus(passwdDatabase.Open())
 }
 
 //export _nss_http_endpwent
-func _nss_http_endpwent() C.enum_nss_status {
-	log.Debug().Msg("_nss_http_endpwent")
-	if !passwdDatabase.IsOpen {
-		return C.NSS_STATUS_UNAVAIL
-	}
-	passwdDatabase.IsOpen = false
-	passwdDatabase.FetchedItems = false
-	passwdDatabase.Items = nil
-	passwdDatabase.ItemIndex = 0
-	return C.NSS_STATUS_SUCCESS
+func _nss_http_endpwent() (status C.enum_nss_status) {
+	log.Trace().Msg("endpwent")
+	defer log.Debug().
+		Int32("status", status).
+		Int("errno", GetErrNo()).
+		Msg("endpwent")
+	return errorToNSSStatus(passwdDatabase.Close())
 }
+
+//
+// //export _nss_http_getpwent
+// func _nss_http_getpwent() *C.struct_passwd {
+// 	log.Trace().Msg("getpwent")
+// 	defer log.Debug().
+// 		Int("errno", GetErrNo()).
+// 		Msg("getpwent")
+// 	panic("not implemented")
+// }
+//
 
 //export _nss_http_getpwent_r
-func _nss_http_getpwent_r(pwbuf *C.struct_passwd, buffer *C.char, buflen C.size_t) C.enum_nss_status {
-	log.Debug().Msg("_nss_http_getpwent_r")
-	if !passwdDatabase.IsOpen {
-		return C.NSS_STATUS_UNAVAIL
+func _nss_http_getpwent_r(resultBuf *C.struct_passwd, buffer *C.char, bufLen C.size_t, result **C.struct_passwd) (status C.enum_nss_status) {
+	log.Trace().Msg("getpwent_r")
+	defer log.Debug().
+		Int32("status", status).
+		Int("errno", GetErrNo()).
+		Msg("getpwent_r")
+	*result = nil
+	status = errorToNSSStatus(
+		passwdDatabase.GetEnt(
+			func() ([]types.User, error) {
+				return getUsers(PlainRetrivalMode)
+			},
+			func(item *types.User) error {
+				return StoreUserInPasswdStruct(item, resultBuf, buffer, bufLen)
+			},
+		),
+	)
+	if status == C.NSS_STATUS_SUCCESS {
+		*result = resultBuf
 	}
-	if !passwdDatabase.FetchedItems {
-		var err error
-		passwdDatabase.Items, err = getUsers()
-		if err != nil {
-			log.Err(err).Msg("unable to get users")
-			return C.NSS_STATUS_UNAVAIL
-		}
-	}
-
-	if passwdDatabase.ItemIndex+1 > len(passwdDatabase.Items) {
-		return C.NSS_STATUS_NOTFOUND
-	}
-
-	// store everything in buffer
-	if err := StoreUserInPasswdStruct(&passwdDatabase.Items[passwdDatabase.ItemIndex], pwbuf, buffer, buflen); err != nil {
-		log.Err(err).Msg("unable to store user in buffer")
-		return C.NSS_STATUS_UNAVAIL
-	}
-	passwdDatabase.ItemIndex++
-	return C.NSS_STATUS_SUCCESS
+	return status
 }
 
-//export _nss_http_getpwnam_r
-func _nss_http_getpwnam_r(name *C.char, result *C.struct_passwd, buffer *C.char, buflen C.size_t, errnop *C.int) C.enum_nss_status {
-	log.Debug().Msg("_nss_http_getpwnam_r")
-
-	userName := C.GoString(name)
-	user, err := getUser(types.NameIdentifier(userName))
-	if err != nil {
-		log.Err(err).Str("name", userName).Msg("unable to get user by name")
-		return C.NSS_STATUS_UNAVAIL
-	}
-	if user == nil {
-		log.Debug().Str("name", userName).Msg("user not found")
-		return C.NSS_STATUS_NOTFOUND
-	}
-
-	log.Debug().Any("user", user).Msg("user found")
-
-	// store everything in buffer
-	if err := StoreUserInPasswdStruct(user, result, buffer, buflen); err != nil {
-		log.Err(err).Str("name", userName).Msg("unable to store user in buffer")
-		return C.NSS_STATUS_UNAVAIL
-	}
-
-	return C.NSS_STATUS_SUCCESS
-}
+// //export _nss_http_getpwuid
+// func _nss_http_getpwuid(uid C.uint) *C.struct_passwd {
+// 	log.Trace().Msg("getpwuid")
+// 	defer log.Debug().
+// 		Int("errno", GetErrNo()).
+// 		Msg("getpwuid")
+// 	panic("not implemented")
+// }
 
 //export _nss_http_getpwuid_r
-func _nss_http_getpwuid_r(uid C.uint, result *C.struct_passwd, buffer *C.char, buflen C.size_t, errnop *C.int) C.enum_nss_status {
-	log.Debug().Msg("nss_http_getpwuid_r")
+func _nss_http_getpwuid_r(uid C.uint, resultBuf *C.struct_passwd, buffer *C.char, bufLen C.size_t, result **C.struct_passwd) (status C.enum_nss_status) {
+	log.Trace().Msg("getpwuid_r")
+	defer log.Debug().
+		Int32("status", status).
+		Int("errno", GetErrNo()).
+		Msg("getpwuid_r")
+	*result = nil
 	goUid := uint(uid)
-	user, err := getUser(types.UIDIdentifier(goUid))
+	user, err := getUser(PlainRetrivalMode, types.UIDIdentifier(goUid))
 	if err != nil {
 		log.Err(err).Uint("uid", goUid).Msg("unable to get user by uid")
+		SetErrNo(C.ENOENT)
 		return C.NSS_STATUS_UNAVAIL
 	}
 	if user == nil {
 		log.Debug().Uint("uid", goUid).Msg("user not found")
+		SetErrNo(C.ENOENT)
 		return C.NSS_STATUS_NOTFOUND
 	}
 
 	log.Debug().Any("user", user).Msg("user found")
 
 	// store everything in buffer
-	if err := StoreUserInPasswdStruct(user, result, buffer, buflen); err != nil {
+	if err := StoreUserInPasswdStruct(user, resultBuf, buffer, bufLen); err != nil {
 		log.Err(err).Uint("uid", goUid).Msg("unable to store user in buffer")
+		if errors.Is(err, utils.OutOfMemoryError{}) {
+			SetErrNo(C.ERANGE)
+			return C.NSS_STATUS_UNAVAIL
+		}
+		SetErrNo(C.ENOENT)
 		return C.NSS_STATUS_UNAVAIL
 	}
+	*result = resultBuf
+	SetErrNo(0)
+	return C.NSS_STATUS_SUCCESS
+}
 
+// //export _nss_http_getpwnam
+// func _nss_http_getpwnam(name *C.char) *C.struct_passwd {
+// 	log.Trace().Msg("getpwnam")
+// 	defer log.Debug().
+// 		Int("errno", GetErrNo()).
+// 		Msg("getpwnam")
+// 	panic("not implemented")
+// }
+
+//export _nss_http_getpwnam_r
+func _nss_http_getpwnam_r(name *C.char, resultBuf *C.struct_passwd, buffer *C.char, bufLen C.size_t, result **C.struct_passwd) (status C.enum_nss_status) {
+	log.Trace().Msg("getpwnam_r")
+	defer log.Debug().
+		Int32("status", status).
+		Int("errno", GetErrNo()).
+		Msg("getpwnam_r")
+	*result = nil
+	userName := C.GoString(name)
+	user, err := getUser(PlainRetrivalMode, types.NameIdentifier(userName))
+	if err != nil {
+		log.Err(err).Str("name", userName).Msg("unable to get user by name")
+		SetErrNo(C.ENOENT)
+		return C.NSS_STATUS_UNAVAIL
+	}
+	if user == nil {
+		log.Debug().Str("name", userName).Msg("user not found")
+		SetErrNo(C.ENOENT)
+		return C.NSS_STATUS_NOTFOUND
+	}
+
+	log.Debug().Any("user", user).Msg("user found")
+
+	// store everything in buffer
+	if err := StoreUserInPasswdStruct(user, resultBuf, buffer, bufLen); err != nil {
+		log.Err(err).Str("name", userName).Msg("unable to store user in buffer")
+		if errors.Is(err, utils.OutOfMemoryError{}) {
+			SetErrNo(C.ERANGE)
+			return C.NSS_STATUS_UNAVAIL
+		}
+		SetErrNo(C.ENOENT)
+		return C.NSS_STATUS_UNAVAIL
+	}
+	*result = resultBuf
+	SetErrNo(0)
 	return C.NSS_STATUS_SUCCESS
 }

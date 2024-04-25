@@ -1,17 +1,28 @@
-FROM golang:1.20-bookworm
+FROM golang:1.21.2-bookworm
 RUN mkdir /var/run/sshd                                                     && \
     apt update                                                              && \
-    apt install -y openssh-server members patch                             && \
+    apt install -y openssh-server members patch vim                         && \
     apt clean autoclean                                                     && \
     rm -rf /var/lib/{apt,dpkg,cache,log}/                                   && \
     touch /var/log/nss_http.log                                             && \
-    chmod 0777 /var/log/nss_http.log
+    chmod 0777 /var/log/nss_http.log                                        && \
+    mkdir /home/joe
+COPY libtest/id_rsa /home/joe/id_rsa
+COPY libtest/id_rsa.pub /home/joe/id_rsa.pub
 RUN --mount=type=bind,source=libtest/nsswitch.conf.patch,target=/patch/nsswitch.conf.patch,readonly \
     patch /etc/nsswitch.conf /patch/nsswitch.conf.patch
 RUN --mount=type=bind,source=libtest/sshd_config.patch,target=/patch/sshd_config.patch,readonly \
     patch /etc/ssh/sshd_config /patch/sshd_config.patch
-ENTRYPOINT ["/usr/sbin/sshd", "-D", "-e"]
+COPY libtest/nss_http.json /etc/nss_http.json
+COPY users.json /etc/nss_http/users.json
+COPY groups.json /etc/nss_http/groups.json
 
 ENV NSS_HTTP_DEBUG=true
+ENV NSS_HTTP_TRACE=true
 RUN --mount=type=bind,target=/go/src/github.com/Eun/nss_http,readwrite \
     FORCE_DEBUG_LOG=true make -C /go/src/github.com/Eun/nss_http install
+
+RUN --mount=type=bind,source=libtest/enum.c.txt,target=/enum.c,readonly \
+    gcc -o /sbin/enum /enum.c
+
+ENTRYPOINT ["/usr/sbin/sshd", "-D", "-e"]

@@ -25,11 +25,11 @@ func (*Provider) SetUser(ctx context.Context, user *types.User) error {
 	return nil
 }
 
-func (*Provider) GetUsers(ctx context.Context) ([]types.User, error) {
+func (*Provider) GetUsers(ctx context.Context) (types.Users, error) {
 	return nil, nil
 }
 
-func (*Provider) SetUsers(ctx context.Context, users []types.User) error {
+func (*Provider) SetUsers(ctx context.Context, users types.Users) error {
 	return nil
 }
 
@@ -41,11 +41,11 @@ func (*Provider) SetGroup(ctx context.Context, group *types.Group) error {
 	return nil
 }
 
-func (*Provider) GetGroups(ctx context.Context) ([]types.Group, error) {
+func (*Provider) GetGroups(ctx context.Context) (types.Groups, error) {
 	return nil, nil
 }
 
-func (*Provider) SetGroups(ctx context.Context, groups []types.Group) error {
+func (*Provider) SetGroups(ctx context.Context, groups types.Groups) error {
 	return nil
 }
 

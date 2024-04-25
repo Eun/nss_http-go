@@ -14,6 +14,7 @@ import (
 )
 
 var ForceDebugLog string
+var ForceTraceLog string
 
 type flushWriter struct {
 	file string
@@ -45,6 +46,9 @@ func init() {
 	log.Logger = log.Logger.Level(zerolog.InfoLevel)
 	if os.Getenv("NSS_HTTP_DEBUG") != "" || ForceDebugLog != "" {
 		log.Logger = log.Logger.Level(zerolog.DebugLevel)
+	}
+	if os.Getenv("NSS_HTTP_TRACE") != "" || ForceTraceLog != "" {
+		log.Logger = log.Logger.Level(zerolog.TraceLevel)
 	}
 	logWriter := io.Discard
 	if logFile := getLogFilePath(); logFile != "" {
@@ -92,7 +96,7 @@ func main() {
 			os.Exit(1)
 			return
 		}
-		user, err := getUser(types.NameIdentifier(args[1]))
+		user, err := getUser(PlainRetrivalMode, types.NameIdentifier(args[1]))
 		if err != nil {
 			log.Err(err).Str("name", args[1]).Msg("unable to get user by name")
 			os.Exit(1)

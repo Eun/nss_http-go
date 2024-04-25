@@ -15,19 +15,27 @@ const nonExistentUID = "5000"
 const nonExistentGroupName = "alice"
 const nonExistentGID = "5000"
 
-func GetSpecificUser(t *testing.T, user *types.User, container *TestContainer) {
+func GetSpecificUser(t *testing.T, user *types.User, disableShadow bool, container *TestContainer) {
 	t.Run("GetSpecificUser", func(t *testing.T) {
 		t.Run("passwd", func(t *testing.T) {
 			t.Run("known user", func(t *testing.T) {
 				t.Run("by name", func(t *testing.T) {
 					result, err := container.GetPasswd(user.User)
 					require.NoError(t, err)
-					require.Equal(t, fmt.Sprintf("%s:%s:%d:%d:%s:%s:%s", user.User, user.Passwd, user.Uid, user.Gid, user.Name, user.Dir, user.Shell), result)
+					passwd := user.Passwd
+					if !disableShadow {
+						passwd = "x"
+					}
+					require.Equal(t, fmt.Sprintf("%s:%s:%d:%d:%s:%s:%s", user.User, passwd, user.Uid, user.Gid, user.Name, user.Dir, user.Shell), result)
 				})
 				t.Run("by uid", func(t *testing.T) {
 					result, err := container.GetPasswd(strconv.FormatUint(uint64(user.Uid), 10))
 					require.NoError(t, err)
-					require.Equal(t, fmt.Sprintf("%s:%s:%d:%d:%s:%s:%s", user.User, user.Passwd, user.Uid, user.Gid, user.Name, user.Dir, user.Shell), result)
+					passwd := user.Passwd
+					if !disableShadow {
+						passwd = "x"
+					}
+					require.Equal(t, fmt.Sprintf("%s:%s:%d:%d:%s:%s:%s", user.User, passwd, user.Uid, user.Gid, user.Name, user.Dir, user.Shell), result)
 				})
 			})
 
@@ -65,12 +73,16 @@ func GetSpecificUser(t *testing.T, user *types.User, container *TestContainer) {
 
 }
 
-func UserInUserList(t *testing.T, user *types.User, container *TestContainer) {
+func UserInUserList(t *testing.T, user *types.User, disableShadow bool, container *TestContainer) {
 	t.Run("UserInUserList", func(t *testing.T) {
 		t.Run("passwd", func(t *testing.T) {
 			result, err := container.GetPasswd("")
 			require.NoError(t, err)
-			require.Contains(t, result, fmt.Sprintf("%s:%s:%d:%d:%s:%s:%s", user.User, user.Passwd, user.Uid, user.Gid, user.Name, user.Dir, user.Shell))
+			passwd := user.Passwd
+			if !disableShadow {
+				passwd = "x"
+			}
+			require.Contains(t, result, fmt.Sprintf("%s:%s:%d:%d:%s:%s:%s", user.User, passwd, user.Uid, user.Gid, user.Name, user.Dir, user.Shell))
 		})
 		t.Run("shadow", func(t *testing.T) {
 			result, err := container.GetShadow("")
@@ -80,12 +92,16 @@ func UserInUserList(t *testing.T, user *types.User, container *TestContainer) {
 	})
 }
 
-func UserNotInUserList(t *testing.T, user *types.User, container *TestContainer) {
+func UserNotInUserList(t *testing.T, user *types.User, disableShadow bool, container *TestContainer) {
 	t.Run("UserNotInUserList", func(t *testing.T) {
 		t.Run("passwd", func(t *testing.T) {
 			result, err := container.GetPasswd("")
 			require.NoError(t, err)
-			require.NotContains(t, result, fmt.Sprintf("%s:%s:%d:%d:%s:%s:%s", user.User, user.Passwd, user.Uid, user.Gid, user.Name, user.Dir, user.Shell))
+			passwd := user.Passwd
+			if !disableShadow {
+				passwd = "x"
+			}
+			require.NotContains(t, result, fmt.Sprintf("%s:%s:%d:%d:%s:%s:%s", user.User, passwd, user.Uid, user.Gid, user.Name, user.Dir, user.Shell))
 		})
 		t.Run("shadow", func(t *testing.T) {
 			result, err := container.GetShadow("")
@@ -95,19 +111,27 @@ func UserNotInUserList(t *testing.T, user *types.User, container *TestContainer)
 	})
 }
 
-func GetSpecificGroup(t *testing.T, group *types.Group, container *TestContainer) {
+func GetSpecificGroup(t *testing.T, group *types.Group, disableShadow bool, container *TestContainer) {
 	t.Run("GetSpecificGroup", func(t *testing.T) {
 		t.Run("group", func(t *testing.T) {
 			t.Run("known group", func(t *testing.T) {
 				t.Run("by name", func(t *testing.T) {
 					result, err := container.GetGroup(group.Name)
 					require.NoError(t, err)
-					require.Equal(t, fmt.Sprintf("%s:%s:%d:", group.Name, group.Passwd, group.Gid), result)
+					passwd := group.Passwd
+					if !disableShadow {
+						passwd = "x"
+					}
+					require.Equal(t, fmt.Sprintf("%s:%s:%d:", group.Name, passwd, group.Gid), result)
 				})
 				t.Run("by gid", func(t *testing.T) {
 					result, err := container.GetGroup(strconv.FormatUint(uint64(group.Gid), 10))
 					require.NoError(t, err)
-					require.Equal(t, fmt.Sprintf("%s:%s:%d:", group.Name, group.Passwd, group.Gid), result)
+					passwd := group.Passwd
+					if !disableShadow {
+						passwd = "x"
+					}
+					require.Equal(t, fmt.Sprintf("%s:%s:%d:", group.Name, passwd, group.Gid), result)
 				})
 			})
 
@@ -144,12 +168,16 @@ func GetSpecificGroup(t *testing.T, group *types.Group, container *TestContainer
 	})
 }
 
-func GroupInGroupList(t *testing.T, group *types.Group, container *TestContainer) {
+func GroupInGroupList(t *testing.T, group *types.Group, disableShadow bool, container *TestContainer) {
 	t.Run("GroupInGroupList", func(t *testing.T) {
 		t.Run("group", func(t *testing.T) {
 			result, err := container.GetGroup("")
 			require.NoError(t, err)
-			require.Contains(t, result, fmt.Sprintf("%s:%s:%d:", group.Name, group.Passwd, group.Gid))
+			passwd := group.Passwd
+			if !disableShadow {
+				passwd = "x"
+			}
+			require.Contains(t, result, fmt.Sprintf("%s:%s:%d:", group.Name, passwd, group.Gid))
 		})
 		t.Run("gshadow", func(t *testing.T) {
 			result, err := container.GetGShadow("")
@@ -159,12 +187,16 @@ func GroupInGroupList(t *testing.T, group *types.Group, container *TestContainer
 	})
 }
 
-func GroupNotInGroupList(t *testing.T, group *types.Group, container *TestContainer) {
+func GroupNotInGroupList(t *testing.T, group *types.Group, disableShadow bool, container *TestContainer) {
 	t.Run("GroupNotInGroupList", func(t *testing.T) {
 		t.Run("group", func(t *testing.T) {
 			result, err := container.GetGroup("")
 			require.NoError(t, err)
-			require.NotContains(t, result, fmt.Sprintf("%s:%s:%d:", group.Name, group.Passwd, group.Gid))
+			passwd := group.Passwd
+			if !disableShadow {
+				passwd = "x"
+			}
+			require.NotContains(t, result, fmt.Sprintf("%s:%s:%d:", group.Name, passwd, group.Gid))
 		})
 		t.Run("gshadow", func(t *testing.T) {
 			result, err := container.GetGShadow("")

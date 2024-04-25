@@ -1,6 +1,6 @@
 
 ifdef FORCE_DEBUG_LOG
-ADDITIONAL_LD_FLAGS = -X main.ForceDebugLog=true
+ADDITIONAL_LD_FLAGS = -X main.ForceDebugLog=true -X main.ForceTraceLog=true
 endif
 
 all:
@@ -15,15 +15,9 @@ install: all
 test-container:
 	docker build -t nss_http_test:latest -f Dockerfile.test .
 
-interactive-test-container: test-container
-	docker run --rm -ti \
-	--entrypoint /bin/bash \
-	--publish 2222:22 \
-	--volume ${PWD}/libtest/nss_http.json:/etc/nss_http.json:ro \
-	--volume ${PWD}/users.json:/etc/nss_http/users.json:ro \
-	--volume ${PWD}/groups.json:/etc/nss_http/groups.json:ro \
-	nss_http_test:latest
+run-test-container: test-container
+	docker run --rm -ti nss_http_test:latest
 
 test: test-container
-	go test -v ./...
+	go test -v
 

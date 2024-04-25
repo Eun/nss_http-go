@@ -93,9 +93,9 @@ func (p *Provider) SetUser(ctx context.Context, user *types.User) error {
 	return nil
 }
 
-func (p *Provider) GetUsers(ctx context.Context) ([]types.User, error) {
+func (p *Provider) GetUsers(ctx context.Context) (types.Users, error) {
 	exitedPrematurely := false
-	var items []types.User
+	var items types.Users
 	p.userMap.Range(func(key, value any) bool {
 		s, ok := key.(string)
 		if !ok {
@@ -124,7 +124,7 @@ func (p *Provider) GetUsers(ctx context.Context) ([]types.User, error) {
 	return items, nil
 }
 
-func (p *Provider) SetUsers(ctx context.Context, users []types.User) error {
+func (p *Provider) SetUsers(ctx context.Context, users types.Users) error {
 	for _, user := range users {
 		if err := p.SetUser(ctx, &user); err != nil {
 			return errors.Wrap(err, "unable to cache user")
@@ -167,9 +167,9 @@ func (p *Provider) SetGroup(ctx context.Context, group *types.Group) error {
 	return nil
 }
 
-func (p *Provider) GetGroups(ctx context.Context) ([]types.Group, error) {
+func (p *Provider) GetGroups(ctx context.Context) (types.Groups, error) {
 	exitedPrematurely := false
-	var items []types.Group
+	var items types.Groups
 	p.groupMap.Range(func(key, value any) bool {
 		s, ok := key.(string)
 		if !ok {
@@ -198,7 +198,7 @@ func (p *Provider) GetGroups(ctx context.Context) ([]types.Group, error) {
 	return items, nil
 }
 
-func (p *Provider) SetGroups(ctx context.Context, groups []types.Group) error {
+func (p *Provider) SetGroups(ctx context.Context, groups types.Groups) error {
 	for _, group := range groups {
 		if err := p.SetGroup(ctx, &group); err != nil {
 			return errors.Wrap(err, "unable to cache group")

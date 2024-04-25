@@ -1,6 +1,6 @@
 module github.com/Eun/nss_http
 
-go 1.20
+go 1.21
 
 require (
 	github.com/docker/docker v24.0.5+incompatible

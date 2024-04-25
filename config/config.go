@@ -23,6 +23,7 @@ type Config struct {
 	ConfigCache          ConfigCache      `json:"Cache"`
 	AllowListingOfUsers  bool             `json:"AllowListingOfUsers"`
 	AllowListingOfGroups bool             `json:"AllowListingOfGroups"`
+	DisableShadow        bool             `json:"DisableShadow"`
 
 	Providers     []types.Provider    `json:"-"`
 	CacheProvider types.CacheProvider `json:"-"`

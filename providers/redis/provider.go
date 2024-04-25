@@ -76,8 +76,8 @@ func (p *Provider) SetUser(ctx context.Context, user *types.User) error {
 	return nil
 }
 
-func (p *Provider) GetUsers(ctx context.Context) ([]types.User, error) {
-	var items []types.User
+func (p *Provider) GetUsers(ctx context.Context) (types.Users, error) {
+	var items types.Users
 	iter := p.client.Scan(ctx, 0, "users/id/*", 10).Iterator()
 	for iter.Next(ctx) {
 		var item types.User
@@ -93,7 +93,7 @@ func (p *Provider) GetUsers(ctx context.Context) ([]types.User, error) {
 	return items, nil
 }
 
-func (p *Provider) SetUsers(ctx context.Context, users []types.User) error {
+func (p *Provider) SetUsers(ctx context.Context, users types.Users) error {
 	for _, user := range users {
 		if err := p.SetUser(ctx, &user); err != nil {
 			return errors.Wrap(err, "unable to cache user")
@@ -137,8 +137,8 @@ func (p *Provider) SetGroup(ctx context.Context, group *types.Group) error {
 	return nil
 }
 
-func (p *Provider) GetGroups(ctx context.Context) ([]types.Group, error) {
-	var items []types.Group
+func (p *Provider) GetGroups(ctx context.Context) (types.Groups, error) {
+	var items types.Groups
 	iter := p.client.Scan(ctx, 0, "groups/id/*", 10).Iterator()
 	for iter.Next(ctx) {
 		var item types.Group
@@ -154,7 +154,7 @@ func (p *Provider) GetGroups(ctx context.Context) ([]types.Group, error) {
 	return items, nil
 }
 
-func (p *Provider) SetGroups(ctx context.Context, groups []types.Group) error {
+func (p *Provider) SetGroups(ctx context.Context, groups types.Groups) error {
 	for _, group := range groups {
 		if err := p.SetGroup(ctx, &group); err != nil {
 			return errors.Wrap(err, "unable to cache group")

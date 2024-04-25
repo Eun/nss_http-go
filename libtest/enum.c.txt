@@ -1,0 +1,197 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dlfcn.h>
+#include <sys/types.h>
+#include <pwd.h>
+#include <grp.h>
+#include <errno.h>
+
+#define BUFFER_SIZE 1024
+
+char* append_string(char *prefix, char *suffix) {
+   size_t len_str1 = strlen(prefix);
+   size_t len_str2 = strlen(suffix);
+   size_t new_str_length = len_str1 + len_str2 + 1; // +1 for the null terminator
+   char* new_str = (char*)malloc(new_str_length);
+   if (new_str == NULL) {
+       fprintf(stderr, "memory allocation failed");
+       return NULL;
+   }
+  strcpy(new_str, prefix);
+  strcat(new_str, suffix);
+  return new_str;
+}
+
+void printBufferHex(const char* buffer, size_t size) {
+    for (size_t i = 0; i < size; ++i) {
+        fprintf(stderr, "%02X ", buffer[i]);
+    }
+    fprintf(stderr, "\n");
+}
+
+
+int list_passwd(void *handle, char *prefix) {
+    char *setpwent_name = append_string(prefix, "setpwent");
+    if (setpwent_name == NULL) {
+        return 1;
+    }
+    char *getpwent_r_name = append_string(prefix, "getpwent_r");
+    if (getpwent_r_name == NULL) {
+        return 1;
+    }
+    char *endpwent_name = append_string(prefix, "endpwent");
+    if (endpwent_name == NULL) {
+        return 1;
+    }
+    int (*setpwent_func)(void) = dlsym(handle, setpwent_name);
+    fprintf(stderr, "found setpwent   @ %x\n", setpwent_func);
+    int (*getpwent_r_func)(struct passwd *, char *, size_t, struct passwd **) = dlsym(handle, getpwent_r_name);
+    fprintf(stderr, "found getpwent_r @ %x\n", getpwent_r_func);
+    int (*endpwent_func)(void) = dlsym(handle, endpwent_name);
+    fprintf(stderr, "found endpwent   @ %x\n", endpwent_func);
+    if (!setpwent_func || !getpwent_r_func || !endpwent_func) {
+        fprintf(stderr, "failed to get function pointers: %s\n", dlerror());
+        free(setpwent_name);
+        free(getpwent_r_name);
+        free(endpwent_name);
+        return 1;
+    }
+
+    // Iterate over all passwd entries
+    fprintf(stderr, "setpwent returned %d, errno = %d\n", setpwent_func(), errno);
+    struct passwd pw;
+    struct passwd *result;
+    char buffer[BUFFER_SIZE];
+    int i = 0;
+    while (1) {
+        printBufferHex(buffer, sizeof(buffer));
+        int res = getpwent_r_func(&pw, buffer, sizeof(buffer), &result);
+        fprintf(stderr, "getpwent_r returned %d, errno = %d, result = %x\n", res, errno, result);
+        printBufferHex(buffer, sizeof(buffer));
+        if (res != 1) {
+            fprintf(stderr, "exiting because result is not 1\n");
+            break;
+        }
+        printf("#:      %d\n", i);
+        printf("name:   %s\n", pw.pw_name);
+        printf("passwd: %s\n", pw.pw_passwd);
+        printf("gecos:  %s\n", pw.pw_gecos);
+        printf("dir:    %s\n", pw.pw_dir);
+        printf("shell:  %s\n", pw.pw_shell);
+        printf("uid:    %d\n", pw.pw_uid);
+        printf("gid:    %d\n", pw.pw_gid);
+        printf("=================================\n");
+        i++;
+    }
+    printf("total: %d\n", i);
+    fprintf(stderr, "endgrent returned %d, errno = %d\n", endpwent_func(), errno);
+    free(setpwent_name);
+    free(getpwent_r_name);
+    free(endpwent_name);
+    return 0;
+}
+
+
+int list_group(void *handle, char *prefix) {
+    char *setgrent_name = append_string(prefix, "setgrent");
+    if (setgrent_name == NULL) {
+        return 1;
+    }
+    char *getgrent_r_name = append_string(prefix, "getgrent_r");
+    if (getgrent_r_name == NULL) {
+        return 1;
+    }
+    char *endgrent_name = append_string(prefix, "endgrent");
+    if (endgrent_name == NULL) {
+        return 1;
+    }
+    int (*setgrent_func)(void) = dlsym(handle, setgrent_name);
+    fprintf(stderr, "found setgrent   @ %x\n", setgrent_func);
+    int (*getgrent_r_func)(struct group *, char *, size_t, struct group **) = dlsym(handle, getgrent_r_name);
+    fprintf(stderr, "found getgrent_r @ %x\n", getgrent_r_func);
+    int (*endgrent_func)(void) = dlsym(handle, endgrent_name);
+    fprintf(stderr, "found endgrent   @ %x\n", endgrent_func);
+    if (!setgrent_func || !getgrent_r_func || !endgrent_func) {
+        fprintf(stderr, "failed to get function pointers: %s\n", dlerror());
+        free(setgrent_name);
+        free(getgrent_r_name);
+        free(endgrent_name);
+        return 1;
+    }
+
+    // Iterate over all passwd entries
+    fprintf(stderr, "setgrent returned %d, errno = %d\n", setgrent_func(), errno);
+    struct group grp;
+    struct group *result;
+    char buffer[BUFFER_SIZE];
+    int i = 0;
+    while (1) {
+        printBufferHex(buffer, sizeof(buffer));
+        int res = getgrent_r_func(&grp, buffer, sizeof(buffer), &result);
+        fprintf(stderr, "getgrent_r returned %d, errno = %d, result = %x\n", res, errno, result);
+        printBufferHex(buffer, sizeof(buffer));
+        if (res != 1) {
+            fprintf(stderr, "exiting because result is not 1\n");
+            break;
+        }
+
+        printf("#:       %d\n", i);
+        printf("name:    %s\n", grp.gr_name);
+        printf("passwd:  %s\n", grp.gr_passwd);
+        printf("gid:     %d\n", grp.gr_gid);
+        printf("members: ");
+        if (grp.gr_mem != NULL) {
+            for (int j = 0; grp.gr_mem[j]; j++) {
+                printf("%s%s\n", (j != 0 ? "         " : ""), grp.gr_mem[j]);
+            }
+        } else {
+            printf("\n");
+        }
+        printf("=================================\n");
+        i++;
+    }
+    printf("total: %d\n", i);
+    fprintf(stderr, "endgrent returned %d, errno = %d\n", endgrent_func(), errno);
+    free(setgrent_name);
+    free(getgrent_r_name);
+    free(endgrent_name);
+    return 0;
+}
+
+int min(int a, int b) {
+    if (a < b) {
+        return a;
+    }
+    return b;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc != 4) {
+        printf("usage: %s <lib> <prefix> <passwd|group>\n\n", argv[0]);
+        printf("examples: %s libnss_files.so.2 _nss_files_ passwd\n", argv[0]);
+        printf("          %s libnss_files.so.2 _nss_files_ group\n", argv[0]);
+        printf("          %s libnss_http.so.2 _nss_http_ passwd\n", argv[0]);
+        printf("          %s libnss_http.so.2 _nss_http_ group\n", argv[0]);
+        printf("you can suppress debug messages by redirecting stderr to /dev/null: '2>/dev/null`\n");
+        return 1;
+    }
+
+    fprintf(stderr, "loading %s...\n", argv[1]);
+    // Load the libnss_files library
+    void* handle = dlopen(argv[1], RTLD_NOW);
+    if (!handle) {
+        fprintf(stderr, "failed to load %s: %s\n", argv[1], dlerror());
+        return 1;
+    }
+
+    int result = 0;
+    if (strncmp(argv[3], "passwd", min(strlen(argv[3]), 6)) == 0) {
+        result = list_passwd(handle, argv[2]);
+    }
+    if (strncmp(argv[3], "group", min(strlen(argv[3]), 5)) == 0) {
+        result = list_group(handle, argv[2]);
+    }
+    dlclose(handle);
+    return result;
+}

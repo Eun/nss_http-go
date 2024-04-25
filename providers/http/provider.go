@@ -71,7 +71,7 @@ func (p *Provider) GetUser(ctx context.Context, identifier any) (*types.User, er
 	return &user, nil
 }
 
-func (p *Provider) GetUsers(ctx context.Context) ([]types.User, error) {
+func (p *Provider) GetUsers(ctx context.Context) (types.Users, error) {
 	if p.config.URLs.Users == "" {
 		return nil, nil
 	}
@@ -83,7 +83,7 @@ func (p *Provider) GetUsers(ctx context.Context) ([]types.User, error) {
 		return nil, nil
 	}
 
-	var users []types.User
+	var users types.Users
 	if err := json.Unmarshal(body, &users); err != nil {
 		return nil, errors.Wrapf(err, "unable to decode server response: %q", string(body))
 	}
@@ -134,7 +134,7 @@ func (p *Provider) GetGroup(ctx context.Context, identifier any) (*types.Group, 
 	return &group, nil
 }
 
-func (p *Provider) GetGroups(ctx context.Context) ([]types.Group, error) {
+func (p *Provider) GetGroups(ctx context.Context) (types.Groups, error) {
 	if p.config.URLs.Groups == "" {
 		return nil, nil
 	}
@@ -146,7 +146,7 @@ func (p *Provider) GetGroups(ctx context.Context) ([]types.Group, error) {
 		return nil, nil
 	}
 
-	var groups []types.Group
+	var groups types.Groups
 	if err := json.Unmarshal(body, &groups); err != nil {
 		return nil, errors.Wrapf(err, "unable to decode server response: %q", string(body))
 	}

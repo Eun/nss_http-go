@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -31,7 +30,7 @@ func TestLib(t *testing.T) {
 
 	user := types.User{
 		User:     "joe",
-		Passwd:   "$6$.WdgkoyPbvxIDDKU$mOVy8BlNvGssTojiLDyo37S7/puNMBx53S4VAp1nhxSnV5G7bzZw42QxbcYiq4TJwReY0cBLQGc5Dt6Mnk4lg1",
+		Passwd:   "$6$.WdgkoyPbvxIDDKU$mOVy8BlNvGssTojiLDyo37S7/puNMBx53S4VAp1nhxSnV5G7bzZw42QxbcYiq4TJwReY0cBLQGc5Dt6Mnk4lg1", // joe
 		Name:     "Joe Doe",
 		Dir:      "/home/joe",
 		Shell:    "/bin/bash",
@@ -72,23 +71,23 @@ func TestLib(t *testing.T) {
 	_, httpServerPort, err := net.SplitHostPort(s.Listener.Addr().String())
 	require.NoError(t, err)
 
-	redisContainer, err := testcontainers.GenericContainer(context.Background(), testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "redis:7",
-			ExposedPorts: []string{"6379/tcp"},
-			HostConfigModifier: func(config *container.HostConfig) {
-				config.AutoRemove = true
-			},
-		},
-		Started: true,
-	})
-	require.NoError(t, err)
-	defer redisContainer.Terminate(context.Background())
-
-	redisPort, err := redisContainer.MappedPort(context.Background(), "6379/tcp")
-	require.NoError(t, err)
-
 	t.Run("full feature set", func(t *testing.T) {
+		redisContainer, err := testcontainers.GenericContainer(context.Background(), testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				Image:        "redis:7",
+				ExposedPorts: []string{"6379/tcp"},
+				HostConfigModifier: func(config *container.HostConfig) {
+					config.AutoRemove = true
+				},
+			},
+			Started: true,
+		})
+		require.NoError(t, err)
+		defer redisContainer.Terminate(context.Background())
+
+		redisPort, err := redisContainer.MappedPort(context.Background(), "6379/tcp")
+		require.NoError(t, err)
+
 		container, err := NewTestContainer(fmt.Sprintf(`
 {
 	"Providers": [{
@@ -108,7 +107,8 @@ func TestLib(t *testing.T) {
 		"URL":  "redis://host.docker.internal:%[2]s"
 	},
 	"AllowListingOfUsers": true,
-	"AllowListingOfGroups": true
+	"AllowListingOfGroups": true,
+	"DisableShadow": false
 }
 `, httpServerPort, redisPort.Port()))
 		require.NoError(t, err)
@@ -120,10 +120,10 @@ func TestLib(t *testing.T) {
 			}
 		}()
 
-		GetSpecificUser(t, &user, container)
-		UserInUserList(t, &user, container)
-		GetSpecificGroup(t, &group, container)
-		GroupInGroupList(t, &group, container)
+		GetSpecificUser(t, &user, false, container)
+		UserInUserList(t, &user, false, container)
+		GetSpecificGroup(t, &group, false, container)
+		GroupInGroupList(t, &group, false, container)
 	})
 
 	t.Run("only users and groups url specified", func(t *testing.T) {
@@ -138,13 +138,13 @@ func TestLib(t *testing.T) {
 		"Headers": {}
 	}],
 	"Cache": {
-		"Name": "redis",
-		"URL":  "redis://host.docker.internal:%[2]s"
+		"Name": "disabled"
 	},
 	"AllowListingOfUsers": true,
-	"AllowListingOfGroups": true
+	"AllowListingOfGroups": true,
+	"DisableShadow": false
 }
-`, httpServerPort, redisPort.Port()))
+`, httpServerPort))
 		require.NoError(t, err)
 		defer container.Close()
 		defer func() {
@@ -154,10 +154,10 @@ func TestLib(t *testing.T) {
 			}
 		}()
 
-		GetSpecificUser(t, &user, container)
-		UserInUserList(t, &user, container)
-		GetSpecificGroup(t, &group, container)
-		GroupInGroupList(t, &group, container)
+		GetSpecificUser(t, &user, false, container)
+		UserInUserList(t, &user, false, container)
+		GetSpecificGroup(t, &group, false, container)
+		GroupInGroupList(t, &group, false, container)
 	})
 
 	t.Run("only individual users and groups url specified", func(t *testing.T) {
@@ -174,13 +174,13 @@ func TestLib(t *testing.T) {
 		"Headers": {}
 	}],
 	"Cache": {
-		"Name": "redis",
-		"URL":  "redis://host.docker.internal:%[2]s"
+		"Name": "disabled"
 	},
 	"AllowListingOfUsers": true,
-	"AllowListingOfGroups": true
+	"AllowListingOfGroups": true,
+	"DisableShadow": false
 }
-`, httpServerPort, redisPort.Port()))
+`, httpServerPort))
 		require.NoError(t, err)
 		defer container.Close()
 		defer func() {
@@ -190,10 +190,10 @@ func TestLib(t *testing.T) {
 			}
 		}()
 
-		GetSpecificUser(t, &user, container)
-		UserNotInUserList(t, &user, container)
-		GetSpecificGroup(t, &group, container)
-		GroupNotInGroupList(t, &group, container)
+		GetSpecificUser(t, &user, false, container)
+		UserNotInUserList(t, &user, false, container)
+		GetSpecificGroup(t, &group, false, container)
+		GroupNotInGroupList(t, &group, false, container)
 	})
 
 	t.Run("disallow listing of users & groups", func(t *testing.T) {
@@ -208,13 +208,13 @@ func TestLib(t *testing.T) {
 		"Headers": {}
 	}],
 	"Cache": {
-		"Name": "redis",
-		"URL":  "redis://host.docker.internal:%[2]s"
+		"Name": "disabled"
 	},
 	"AllowListingOfUsers": false,
-	"AllowListingOfGroups": false
+	"AllowListingOfGroups": false,
+	"DisableShadow": false
 }
-`, httpServerPort, redisPort.Port()))
+`, httpServerPort))
 		require.NoError(t, err)
 		defer container.Close()
 		defer func() {
@@ -224,10 +224,10 @@ func TestLib(t *testing.T) {
 			}
 		}()
 
-		GetSpecificUser(t, &user, container)
-		UserNotInUserList(t, &user, container)
-		GetSpecificGroup(t, &group, container)
-		GroupNotInGroupList(t, &group, container)
+		GetSpecificUser(t, &user, false, container)
+		UserNotInUserList(t, &user, false, container)
+		GetSpecificGroup(t, &group, false, container)
+		GroupNotInGroupList(t, &group, false, container)
 	})
 
 	t.Run("get members of group", func(t *testing.T) {
@@ -242,13 +242,13 @@ func TestLib(t *testing.T) {
 		"Headers": {}
 	}],
 	"Cache": {
-		"Name": "redis",
-		"URL":  "redis://host.docker.internal:%[2]s"
+		"Name": "disabled"
 	},
 	"AllowListingOfUsers": true,
-	"AllowListingOfGroups": true
+	"AllowListingOfGroups": true,
+	"DisableShadow": false
 }
-`, httpServerPort, redisPort.Port()))
+`, httpServerPort))
 		require.NoError(t, err)
 		defer container.Close()
 		defer func() {
@@ -262,64 +262,82 @@ func TestLib(t *testing.T) {
 	})
 
 	t.Run("test ssh login", func(t *testing.T) {
-		container, err := NewTestContainer(fmt.Sprintf(`
-{
-	"Providers": [{
-		"Name": "http",
-		"URLs": {
-			"Users": "http://host.docker.internal:%[1]s/users",
-			"Groups": "http://host.docker.internal:%[1]s/groups"
-		},
-		"Headers": {}
-	}],
-	"Cache": {
-		"Name": "redis",
-		"URL":  "redis://host.docker.internal:%[2]s"
-	},
-	"AllowListingOfUsers": true,
-	"AllowListingOfGroups": true
-}
-`, httpServerPort, redisPort.Port()))
-		require.NoError(t, err)
-		defer container.Close()
-		defer func() {
-			logs, err := container.GetLogs()
-			if err == nil && strings.TrimSpace(logs) != "" {
-				fmt.Println(logs)
-			}
-		}()
+		t.Run("private key", func(t *testing.T) {
+			container, err := NewTestContainer("")
+			require.NoError(t, err)
+			defer container.Close()
+			defer func() {
+				logs, err := container.GetLogs()
+				if err == nil && strings.TrimSpace(logs) != "" {
+					fmt.Println(logs)
+				}
+			}()
 
-		// time.Sleep(time.Minute * 3600)
+			addr, err := container.SSHAddr()
+			require.NoError(t, err)
 
-		addr, err := container.SSHAddr()
-		require.NoError(t, err)
-		c := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", "-i", "id_rsa", fmt.Sprintf("ssh://%s@%s", user.User, addr), "whoami")
-		buf, err := c.Output()
-		require.NoError(t, err)
-		require.Equal(t, user.User, string(buf))
-
-		client, err := ssh.Dial("tcp", addr, &ssh.ClientConfig{
-			Config: ssh.Config{
-				Rand:           nil,
-				RekeyThreshold: 0,
-				KeyExchanges:   nil,
-				Ciphers:        nil,
-				MACs:           nil,
-			},
-			User:            user.User,
-			Auth:            []ssh.AuthMethod{ssh.PublicKeys(privateSSHKey)},
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-			BannerCallback:  nil,
-			ClientVersion:   "",
-			Timeout:         time.Minute,
+			client, err := ssh.Dial("tcp", addr, &ssh.ClientConfig{
+				Config: ssh.Config{
+					Rand:           nil,
+					RekeyThreshold: 0,
+					KeyExchanges:   nil,
+					Ciphers:        nil,
+					MACs:           nil,
+				},
+				User:            user.User,
+				Auth:            []ssh.AuthMethod{ssh.PublicKeys(privateSSHKey)},
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+				BannerCallback:  nil,
+				ClientVersion:   "",
+				Timeout:         time.Minute,
+			})
+			require.NoError(t, err)
+			defer client.Close()
+			sess, err := client.NewSession()
+			require.NoError(t, err)
+			defer sess.Close()
+			buf, err := sess.CombinedOutput("whoami")
+			require.NoError(t, err)
+			require.Equal(t, user.User, strings.TrimSpace(string(buf)))
 		})
-		require.NoError(t, err)
-		defer client.Close()
-		sess, err := client.NewSession()
-		require.NoError(t, err)
-		defer sess.Close()
-		buf, err = sess.CombinedOutput("whoami")
-		require.NoError(t, err)
-		require.Equal(t, user.User, string(buf))
+		t.Run("password", func(t *testing.T) {
+			container, err := NewTestContainer("")
+			require.NoError(t, err)
+			defer container.Close()
+			defer func() {
+				logs, err := container.GetLogs()
+				if err == nil && strings.TrimSpace(logs) != "" {
+					fmt.Println(logs)
+				}
+			}()
+
+			addr, err := container.SSHAddr()
+			require.NoError(t, err)
+
+			client, err := ssh.Dial("tcp", addr, &ssh.ClientConfig{
+				Config: ssh.Config{
+					Rand:           nil,
+					RekeyThreshold: 0,
+					KeyExchanges:   nil,
+					Ciphers:        nil,
+					MACs:           nil,
+				},
+				User:            user.User,
+				Auth:            []ssh.AuthMethod{ssh.Password("joe")},
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+				BannerCallback:  nil,
+				ClientVersion:   "",
+				Timeout:         time.Minute,
+			})
+			require.NoError(t, err)
+			defer client.Close()
+			sess, err := client.NewSession()
+			require.NoError(t, err)
+			defer sess.Close()
+			buf, err := sess.CombinedOutput("whoami")
+			require.NoError(t, err)
+			require.Equal(t, user.User, strings.TrimSpace(string(buf)))
+		})
+
 	})
 }

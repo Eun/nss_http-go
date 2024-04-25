@@ -69,7 +69,8 @@ users and groups.
   ],
   "Cache": Cache,
   "AllowListingOfUsers": false,
-  "AllowListingOfGroups": false
+  "AllowListingOfGroups": false,
+  "DisableShadow": false
 }
 ```
 Notice that you can specify multiple providers, but only one cache provider.  
@@ -87,6 +88,7 @@ $<id>[$<param>=<value>(,<param>=<value>)*][$<salt>[$<hash>]]
 
 Depending on your system, you can use `openssl passwd -6` to hash the passwords upfront.
 
+You could also use plain text mode by setting `DisableShadow` to `true`, but this is not recommended.
 
 ## Providers
 ### http
@@ -118,7 +120,8 @@ _nss_http_ will automatically pull the correct user and group outside of this li
     "Name": "disabled"
   },
   "AllowListingOfUsers": false,
-  "AllowListingOfGroups": false
+  "AllowListingOfGroups": false,
+  "DisableShadow": false
 }
 ```
 
@@ -145,7 +148,8 @@ In this example `getent passwd joe` will result calling `http://localhost:800/us
     "Name": "disabled"
   },
   "AllowListingOfUsers": false,
-  "AllowListingOfGroups": false
+  "AllowListingOfGroups": false,
+  "DisableShadow": false
 }
 ```
 > Notice that a list endpoint is required when you want to allow listing of users and groups
@@ -176,7 +180,8 @@ list requests will go directly to the users/groups endpoint.
     "Name": "disabled"
   },
   "AllowListingOfUsers": false,
-  "AllowListingOfGroups": false
+  "AllowListingOfGroups": false,
+  "DisableShadow": false
 }
 ```
 > Notice that a list endpoint is required when you want to allow listing of users and groups
@@ -250,7 +255,8 @@ Notice that the data must be encoded in json.
     "Name": "disabled"
   },
   "AllowListingOfUsers": false,
-  "AllowListingOfGroups": false
+  "AllowListingOfGroups": false,
+  "DisableShadow": false
 }
 ```
 
@@ -272,7 +278,8 @@ You need to specify a [users.json](users.json) and [groups.json](groups.json) fi
     "Name": "disabled"
   },
   "AllowListingOfUsers": false,
-  "AllowListingOfGroups": false
+  "AllowListingOfGroups": false,
+  "DisableShadow": false
 }
 ```
 

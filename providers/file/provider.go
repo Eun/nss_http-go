@@ -46,7 +46,7 @@ func (p *Provider) GetUser(ctx context.Context, identifier any) (*types.User, er
 
 }
 
-func (p *Provider) GetUsers(ctx context.Context) ([]types.User, error) {
+func (p *Provider) GetUsers(ctx context.Context) (types.Users, error) {
 	if p.config.Users == "" {
 		return nil, nil
 	}
@@ -88,7 +88,7 @@ func (p *Provider) GetGroup(ctx context.Context, identifier any) (*types.Group, 
 	return nil, errors.New("unknown identifier type")
 }
 
-func (p *Provider) GetGroups(ctx context.Context) ([]types.Group, error) {
+func (p *Provider) GetGroups(ctx context.Context) (types.Groups, error) {
 	buf, err := os.ReadFile(p.config.Groups)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to read group file")

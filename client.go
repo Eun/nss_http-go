@@ -9,7 +9,30 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func getUser(identifer any) (*types.User, error) {
+type RetrivalMode byte
+
+const (
+	PlainRetrivalMode RetrivalMode = iota
+	ShadowRetrivalMode
+)
+
+func removePasswdIfPlainMode[T interface{ SetShadowPasswd() }](mode RetrivalMode, disabled bool, ent T) T {
+	if mode == PlainRetrivalMode && !disabled {
+		ent.SetShadowPasswd()
+	}
+	return ent
+}
+
+func removePasswdsIfPlainMode[T interface{ SetPasswd(string) }](mode RetrivalMode, disabled bool, entities []T) []T {
+	if mode == PlainRetrivalMode && !disabled {
+		for i := range entities {
+			entities[i].SetPasswd("x")
+		}
+	}
+	return entities
+}
+
+func getUser(mode RetrivalMode, identifer any) (*types.User, error) {
 	config, err := config.Get()
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to get config")
@@ -25,6 +48,7 @@ func getUser(identifer any) (*types.User, error) {
 			Any("user", user).
 			Any("identifer", identifer).
 			Msg("found user in cache")
+		return removePasswdIfPlainMode(mode, config.DisableShadow, user), nil
 	}
 
 	var provider types.Provider
@@ -52,12 +76,11 @@ func getUser(identifer any) (*types.User, error) {
 		Msg("found user")
 	if err := config.CacheProvider.SetUser(context.Background(), user); err != nil {
 		return nil, errors.Wrap(err, "unable to add to cache")
-
 	}
-	return user, nil
+	return removePasswdIfPlainMode(mode, config.DisableShadow, user), nil
 }
 
-func getUsers() ([]types.User, error) {
+func getUsers(mode RetrivalMode) ([]types.User, error) {
 	config, err := config.Get()
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to get config")
@@ -70,7 +93,7 @@ func getUsers() ([]types.User, error) {
 		return nil, errors.Wrap(err, "unable to get users from cache")
 	}
 	if len(users) > 0 {
-		return users, nil
+		return removePasswdIfPlainMode(mode, config.DisableShadow, users), nil
 	}
 	for _, provider := range config.Providers {
 		providerUsers, err := provider.GetUsers(context.Background())
@@ -90,12 +113,11 @@ func getUsers() ([]types.User, error) {
 
 	if err := config.CacheProvider.SetUsers(context.Background(), users); err != nil {
 		return nil, errors.Wrap(err, "unable to add to cache")
-
 	}
-	return users, nil
+	return removePasswdIfPlainMode(mode, config.DisableShadow, users), nil
 }
 
-func getGroup(identifer any) (*types.Group, error) {
+func getGroup(mode RetrivalMode, identifer any) (*types.Group, error) {
 	config, err := config.Get()
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to get config")
@@ -111,6 +133,7 @@ func getGroup(identifer any) (*types.Group, error) {
 			Any("group", group).
 			Any("identifer", identifer).
 			Msg("found group in cache")
+		return removePasswdIfPlainMode(mode, config.DisableShadow, group), nil
 	}
 
 	var provider types.Provider
@@ -138,12 +161,12 @@ func getGroup(identifer any) (*types.Group, error) {
 		Msg("found group")
 	if err := config.CacheProvider.SetGroup(context.Background(), group); err != nil {
 		return nil, errors.Wrap(err, "unable to add to cache")
-
 	}
-	return group, nil
+
+	return removePasswdIfPlainMode(mode, config.DisableShadow, group), nil
 }
 
-func getGroups() ([]types.Group, error) {
+func getGroups(mode RetrivalMode) ([]types.Group, error) {
 	config, err := config.Get()
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to get config")
@@ -156,7 +179,7 @@ func getGroups() ([]types.Group, error) {
 		return nil, errors.Wrap(err, "unable to get groups from cache")
 	}
 	if len(groups) > 0 {
-		return groups, nil
+		return removePasswdIfPlainMode(mode, config.DisableShadow, groups), nil
 	}
 	for _, provider := range config.Providers {
 		providerGroups, err := provider.GetGroups(context.Background())
@@ -176,7 +199,6 @@ func getGroups() ([]types.Group, error) {
 
 	if err := config.CacheProvider.SetGroups(context.Background(), groups); err != nil {
 		return nil, errors.Wrap(err, "unable to add to cache")
-
 	}
-	return groups, nil
+	return removePasswdIfPlainMode(mode, config.DisableShadow, groups), nil
 }

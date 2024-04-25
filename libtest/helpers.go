@@ -19,15 +19,25 @@ type TestContainer struct {
 }
 
 func NewTestContainer(configContents string) (*TestContainer, error) {
-	configFile, err := os.CreateTemp("", "nss_http_")
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create temp file")
-	}
-	if _, err := configFile.WriteString(configContents); err != nil {
-		return nil, errors.Wrap(err, "unable to write nss_http.json")
-	}
-	if err := configFile.Close(); err != nil {
-		return nil, errors.Wrap(err, "unable to close temp file")
+	var mounts testcontainers.ContainerMounts
+	var configFilePath string
+	if configContents != "" {
+		configFile, err := os.CreateTemp("", "nss_http_")
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to create temp file")
+		}
+		if _, err := configFile.WriteString(configContents); err != nil {
+			return nil, errors.Wrap(err, "unable to write nss_http.json")
+		}
+		if err := configFile.Close(); err != nil {
+			return nil, errors.Wrap(err, "unable to close temp file")
+		}
+		mounts = append(mounts, testcontainers.ContainerMount{
+			Source:   testcontainers.GenericBindMountSource{HostPath: configFile.Name()},
+			Target:   "/etc/nss_http.json",
+			ReadOnly: true,
+		})
+		configFilePath = configFile.Name()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -41,13 +51,7 @@ func NewTestContainer(configContents string) (*TestContainer, error) {
 				return "nss_http_test:latest"
 			}(),
 			ExposedPorts: []string{"22/tcp"},
-			Mounts: testcontainers.Mounts(
-				testcontainers.ContainerMount{
-					Source:   testcontainers.GenericBindMountSource{HostPath: configFile.Name()},
-					Target:   "/etc/nss_http.json",
-					ReadOnly: true,
-				},
-			),
+			Mounts:       mounts,
 			HostConfigModifier: func(config *container.HostConfig) {
 				config.AutoRemove = true
 			},
@@ -59,7 +63,7 @@ func NewTestContainer(configContents string) (*TestContainer, error) {
 	}
 	return &TestContainer{
 		container:  c,
-		ConfigFile: configFile.Name(),
+		ConfigFile: configFilePath,
 	}, nil
 }
 
@@ -69,8 +73,10 @@ func (tc *TestContainer) Close() error {
 	if err := tc.container.Terminate(ctx); err != nil {
 		return errors.Wrap(err, "unable to terminate container")
 	}
-	if err := os.Remove(tc.ConfigFile); err != nil {
-		return errors.Wrap(err, "unable to delete nss_http.json")
+	if tc.ConfigFile != "" {
+		if err := os.Remove(tc.ConfigFile); err != nil {
+			return errors.Wrap(err, "unable to delete nss_http.json")
+		}
 	}
 	return nil
 }
