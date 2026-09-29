@@ -1,0 +1,79 @@
+# Builds the NSS module, runs the unit tests and the containerised
+# integration suite (getent/id/members and real sshd logins).
+name: "ci"
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: "build & test"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+          cache: true
+
+      # The module is a glibc NSS plugin, so it needs the NSS headers.
+      # musl/Alpine cannot host NSS modules at all.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libc6-dev
+
+      - name: Verify formatting
+        run: |
+          unformatted="$(gofmt -l $(git ls-files '*.go' | grep -v '^vendor/'))"
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt'ed:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Build shared library and binary
+        run: make all
+
+      - name: Verify NSS entrypoints are exported
+        run: |
+          missing=0
+          for db in pw sp gr sg; do
+            for fn in set${db}ent end${db}ent get${db}ent_r get${db}nam_r; do
+              if ! nm -D dist/libnss_http.so | grep -q " T _nss_http_${fn}$"; then
+                echo "missing export: _nss_http_${fn}"
+                missing=1
+              fi
+            done
+          done
+          for fn in getpwuid_r getgrgid_r; do
+            if ! nm -D dist/libnss_http.so | grep -q " T _nss_http_${fn}$"; then
+              echo "missing export: _nss_http_${fn}"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Unit tests
+        run: go test -count=1 -race ./types/... ./utils/... ./config/... ./providers/... .
+
+      - name: Build integration test image
+        run: make test-container
+
+      # Not -v: the test image runs with NSS_HTTP_DEBUG/TRACE and the suite
+      # dumps the module's debug log on every subtest, which buries any
+      # assertion failure in tens of thousands of lines.
+      - name: Integration tests
+        run: go test -count=1 -timeout 25m ./libtest/...
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "true"

@@ -91,7 +91,7 @@ func TestProvider(t *testing.T) {
 	t.Run("get users", func(t *testing.T) {
 		gotUsers, err := client.GetUsers(context.Background())
 		require.NoError(t, err)
-		require.Equal(t, []types.User{user}, gotUsers)
+		require.Equal(t, types.Users{user}, gotUsers)
 	})
 
 	t.Run("get group", func(t *testing.T) {
@@ -124,6 +124,6 @@ func TestProvider(t *testing.T) {
 	t.Run("get groups", func(t *testing.T) {
 		gotGroups, err := client.GetGroups(context.Background())
 		require.NoError(t, err)
-		require.Equal(t, []types.Group{group}, gotGroups)
+		require.Equal(t, types.Groups{group}, gotGroups)
 	})
 }

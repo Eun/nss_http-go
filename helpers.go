@@ -19,9 +19,6 @@ void setErrno(int err) {
 int getErrno() {
 	return errno;
 }
-
-void setAddr() {
-}
 */
 import "C"
 import (
@@ -47,7 +44,11 @@ func errorToNSSStatus(err error) C.enum_nss_status {
 		C.setErrno(0)
 		return C.NSS_STATUS_NOTFOUND
 	}
-	if errors.Is(err, &utils.OutOfMemoryError{}) {
+	// OutOfMemoryError is returned by value and has no custom Is method, so
+	// the target must be a value too. Matching against &OutOfMemoryError{}
+	// never succeeded and fell through to NSS_STATUS_SUCCESS below, which
+	// reports a truncated entry as a valid one.
+	if errors.Is(err, utils.OutOfMemoryError{}) {
 		C.setErrno(C.ERANGE)
 		return C.NSS_STATUS_TRYAGAIN
 	}
@@ -110,7 +111,7 @@ func StoreUserInPasswdStruct(user *types.User, result *C.struct_passwd, buffer *
 		return errors.WithStack(err)
 	}
 	if len(ptrs) != 5 {
-		return errors.New("fatal error: expected 2 pointers in result")
+		return errors.New("fatal error: expected 5 pointers in result")
 	}
 	result.pw_name = ptrs[0]
 	result.pw_passwd = ptrs[1]
@@ -142,6 +143,45 @@ func StoreUserInSpwdStruct(user *types.User, result *C.struct_spwd, buffer *C.ch
 	return nil
 }
 
+// writePointerVector writes a NULL terminated vector of char* into buffer,
+// starting at the first pointer aligned offset at or after usedBytes.
+//
+// The vector has to live inside the caller supplied buffer: NSS callers such
+// as glibc's getgrnam_r only keep the buffer alive, so pointing gr_mem at Go
+// memory (or at a Go slice's backing array) would hand out a dangling pointer
+// as soon as the Go GC moves or collects it.
+//
+// The returned pointer is suitable for struct group's gr_mem member.
+func writePointerVector(buffer *C.char, bufsize, usedBytes C.size_t, ptrs []*C.char) (**C.char, error) {
+	base := unsafe.Pointer(buffer)
+	align := uintptr(ptrSize)
+
+	// Align the start of the vector. Storing a pointer through a misaligned
+	// address is undefined behaviour and faults on strict alignment
+	// architectures (e.g. some arm/sparc configurations).
+	start := unsafe.Add(base, int(usedBytes))
+	if rem := uintptr(start) % align; rem != 0 {
+		start = unsafe.Add(start, int(align-rem))
+	}
+
+	// len(ptrs) entries plus the NULL terminator.
+	offset := uintptr(start) - uintptr(base)
+	need := (uintptr(len(ptrs)) + 1) * align
+	if offset+need > uintptr(bufsize) {
+		return nil, utils.OutOfMemoryError{}
+	}
+
+	for i, p := range ptrs {
+		slot := (**C.char)(unsafe.Add(start, int(uintptr(i)*align)))
+		*slot = p
+	}
+	// NULL terminate the vector.
+	terminator := (**C.char)(unsafe.Add(start, int(uintptr(len(ptrs))*align)))
+	*terminator = nil
+
+	return (**C.char)(start), nil
+}
+
 func StoreGroupInGroupStruct(group *types.Group, result *C.struct_group, buffer *C.char, bufsize C.size_t) error {
 	strs := append([]string{group.Name, group.Passwd}, group.GroupMembers...)
 	ptrs, writtenBytes, err := copyToBuffer(buffer, bufsize, strs...)
@@ -152,40 +192,47 @@ func StoreGroupInGroupStruct(group *types.Group, result *C.struct_group, buffer 
 		return errors.Errorf("fatal error: expected %d pointers in result", len(strs))
 	}
 
-	// we also need to write a NULL terminator for the gr_mem vector
-	if bufsize-writtenBytes <= ptrSize {
-		return utils.OutOfMemoryError{}
+	// ptrs[0] and ptrs[1] are gr_name and gr_passwd, everything after that
+	// belongs to the gr_mem vector.
+	members, err := writePointerVector(buffer, bufsize, writtenBytes, ptrs[2:])
+	if err != nil {
+		return errors.WithStack(err)
 	}
-	endOfMem := unsafe.Add(unsafe.Pointer(buffer), int(writtenBytes))
-	C.memset(endOfMem, 0, ptrSize) // write NULL
 
 	result.gr_name = ptrs[0]
 	result.gr_passwd = ptrs[1]
 	result.gr_gid = C.uint(group.Gid)
-	if len(group.GroupMembers) == 0 {
-		result.gr_mem = (**C.char)(endOfMem)
-	} else {
-		// endOfMem = unsafe.Add(endOfMem, ptrSize)
-		// *((**C.char)endOfMem) = ptrs[2]
-		// result.gr_mem = (**C.char)(endOfMem)
-		// result.gr_mem = &ptrs[2]
-		C.setAddr(&result.gr_mem, ptrs[2])
-	}
+	result.gr_mem = members
 	return nil
 }
 
 func StoreGroupInGShadowStruct(group *types.Group, result *C.struct_sgrp, buffer *C.char, bufsize C.size_t) error {
-	ptrs, _, err := copyToBuffer(buffer, bufsize, group.Name, group.Passwd)
+	strs := append([]string{group.Name, group.Passwd}, group.GroupMembers...)
+	ptrs, writtenBytes, err := copyToBuffer(buffer, bufsize, strs...)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	if len(ptrs) != 2 {
-		return errors.New("fatal error: expected 2 pointers in result")
+	if len(ptrs) != len(strs) {
+		return errors.Errorf("fatal error: expected %d pointers in result", len(strs))
+	}
+
+	// sg_adm and sg_mem must both be valid NULL terminated vectors rather
+	// than NULL: callers such as getsgnam_r iterate them unconditionally.
+	members, err := writePointerVector(buffer, bufsize, writtenBytes, ptrs[2:])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	// An empty administrator vector, placed after the member vector.
+	admUsed := (uintptr(unsafe.Pointer(members)) - uintptr(unsafe.Pointer(buffer))) +
+		(uintptr(len(ptrs[2:]))+1)*uintptr(ptrSize)
+	admins, err := writePointerVector(buffer, bufsize, C.size_t(admUsed), nil)
+	if err != nil {
+		return errors.WithStack(err)
 	}
 
 	result.sg_namp = ptrs[0]
 	result.sg_passwd = ptrs[1]
-	result.sg_adm = nil
-	result.sg_mem = nil
+	result.sg_adm = admins
+	result.sg_mem = members
 	return nil
 }
