@@ -237,7 +237,10 @@ func doRequest(parentContext context.Context, requestURL string, requestTimeout 
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, errors.Wrapf(err, "expected status 200, but got %d", res.StatusCode)
+		// errors.Wrapf returns nil when err is nil, which previously made a
+		// non-200 response look like "no error and no user" to the caller,
+		// silently turning a backend outage into a failed authentication.
+		return nil, errors.Errorf("expected status 200, but got %d", res.StatusCode)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(res.Body, maxResponseSize))
