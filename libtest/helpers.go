@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/exec"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 type TestContainer struct {
@@ -52,6 +53,12 @@ func NewTestContainer(configContents string) (*TestContainer, error) {
 			}(),
 			ExposedPorts: []string{"22/tcp"},
 			Mounts:       mounts,
+			// Without this the container is considered ready as soon as it is
+			// started, so a test can dial sshd before it is listening and get
+			// "connection reset by peer" from the mapped port. Wait for the
+			// banner sshd writes once it actually accepts connections.
+			WaitingFor: wait.ForLog("Server listening on").
+				WithStartupTimeout(time.Minute),
 			HostConfigModifier: func(config *container.HostConfig) {
 				config.AutoRemove = true
 				// host.docker.internal is only predefined on Docker Desktop
