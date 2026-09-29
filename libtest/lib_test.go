@@ -160,6 +160,9 @@ func TestLib(t *testing.T) {
 		require.NoError(t, err)
 		defer container.Close()
 		defer func() {
+			if !t.Failed() {
+				return
+			}
 			logs, err := container.GetLogs()
 			if err == nil && strings.TrimSpace(logs) != "" {
 				fmt.Println(logs)
@@ -199,6 +202,9 @@ func TestLib(t *testing.T) {
 		require.NoError(t, err)
 		defer container.Close()
 		defer func() {
+			if !t.Failed() {
+				return
+			}
 			logs, err := container.GetLogs()
 			if err == nil && strings.TrimSpace(logs) != "" {
 				fmt.Println(logs)
@@ -235,6 +241,9 @@ func TestLib(t *testing.T) {
 		require.NoError(t, err)
 		defer container.Close()
 		defer func() {
+			if !t.Failed() {
+				return
+			}
 			logs, err := container.GetLogs()
 			if err == nil && strings.TrimSpace(logs) != "" {
 				fmt.Println(logs)
@@ -269,6 +278,9 @@ func TestLib(t *testing.T) {
 		require.NoError(t, err)
 		defer container.Close()
 		defer func() {
+			if !t.Failed() {
+				return
+			}
 			logs, err := container.GetLogs()
 			if err == nil && strings.TrimSpace(logs) != "" {
 				fmt.Println(logs)
@@ -303,6 +315,9 @@ func TestLib(t *testing.T) {
 		require.NoError(t, err)
 		defer container.Close()
 		defer func() {
+			if !t.Failed() {
+				return
+			}
 			logs, err := container.GetLogs()
 			if err == nil && strings.TrimSpace(logs) != "" {
 				fmt.Println(logs)
@@ -319,6 +334,9 @@ func TestLib(t *testing.T) {
 			require.NoError(t, err)
 			defer container.Close()
 			defer func() {
+				if !t.Failed() {
+					return
+				}
 				logs, err := container.GetLogs()
 				if err == nil && strings.TrimSpace(logs) != "" {
 					fmt.Println(logs)
@@ -357,6 +375,9 @@ func TestLib(t *testing.T) {
 			require.NoError(t, err)
 			defer container.Close()
 			defer func() {
+				if !t.Failed() {
+					return
+				}
 				logs, err := container.GetLogs()
 				if err == nil && strings.TrimSpace(logs) != "" {
 					fmt.Println(logs)

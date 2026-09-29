@@ -70,7 +70,10 @@ jobs:
       - name: Build integration test image
         run: make test-container
 
+      # Not -v: the test image runs with NSS_HTTP_DEBUG/TRACE and the suite
+      # dumps the module's debug log on every subtest, which buries any
+      # assertion failure in tens of thousands of lines.
       - name: Integration tests
-        run: go test -count=1 -timeout 25m -v ./libtest/...
+        run: go test -count=1 -timeout 25m ./libtest/...
         env:
           TESTCONTAINERS_RYUK_DISABLED: "true"
