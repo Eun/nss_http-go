@@ -54,6 +54,17 @@ func NewTestContainer(configContents string) (*TestContainer, error) {
 			Mounts:       mounts,
 			HostConfigModifier: func(config *container.HostConfig) {
 				config.AutoRemove = true
+				// host.docker.internal is only predefined on Docker Desktop
+				// (macOS/Windows). On Linux it has to be mapped explicitly,
+				// or every HTTP provider lookup fails and NSS silently falls
+				// back to the local files, which makes the whole suite fail.
+				//
+				// This must be set here rather than via ContainerRequest.
+				// ExtraHosts: supplying a HostConfigModifier replaces
+				// testcontainers' default modifier, which is what would
+				// otherwise copy ExtraHosts into the host config.
+				config.ExtraHosts = append(config.ExtraHosts,
+					"host.docker.internal:host-gateway")
 			},
 		},
 		Started: true,
@@ -125,6 +136,22 @@ func (tc *TestContainer) Members(groupName string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	_, r, err := tc.container.Exec(ctx, []string{"members", "-t", groupName}, exec.Multiplexed())
+	if err != nil {
+		return "", errors.Wrap(err, "unable to exec in container")
+	}
+	buf, err := io.ReadAll(r)
+	if err != nil {
+		return "", errors.Wrap(err, "unable to read buffer")
+	}
+	return strings.TrimSpace(string(buf)), nil
+}
+
+// ID runs "id <user>" in the container, which resolves the user's primary and
+// supplementary groups through NSS.
+func (tc *TestContainer) ID(userName string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	_, r, err := tc.container.Exec(ctx, []string{"id", userName}, exec.Multiplexed())
 	if err != nil {
 		return "", errors.Wrap(err, "unable to exec in container")
 	}

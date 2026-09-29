@@ -2,6 +2,18 @@
 
 Name Service Switch Service that uses an http JSON backend to authenticate users and groups.
 
+> **Requires glibc.** NSS modules are a glibc mechanism, so this library only
+> works on glibc based distributions (Debian, Ubuntu, Fedora, Arch, ...).
+> It **cannot** work on musl based distributions such as Alpine: musl has no
+> `nss.h`/`gshadow.h`, exposes no `__nss_*` loader hooks, and reads
+> `/etc/passwd`, `/etc/group` and `/etc/shadow` directly. Alpine's own
+> `/etc/nsswitch.conf` documents that "musl itself does not support NSS" and
+> only honours a `hosts:` line. Installing `gcompat` does not help, since it
+> provides glibc symbol shims rather than the NSS plugin mechanism.
+>
+> On musl systems the `nss_http_sshkey` helper still works, because it is an
+> ordinary executable: see [SSH Authentication](#ssh-authentication). sshd will
+> however still require the user to exist in `/etc/passwd`.
 
 ## Quick Setup
 1. Create a sample [users.json](users.json) and [groups.json](groups.json).
@@ -9,7 +21,8 @@ Name Service Switch Service that uses an http JSON backend to authenticate users
 2. Spin up a http server that hosts these files
    1. e.g. `python -m SimpleHTTPServer 8000` or `python3 -m http.server 8000`
 3. Compile the library for your system or use a prebuilt version from the [Releases](releases) page.
-   1. To compile for your system you need `go1.20` and `make`.
+   1. To compile for your system you need `go1.21`, `make` and the glibc
+      development headers (`libc6-dev` on Debian/Ubuntu).
    2. Run `make install` to build and install the library.
 4. Make sure you placed the library correctly at `/lib/libnss_http.so.2`
 5. Create a new config at `/etc/nss_http.json`:
@@ -43,6 +56,30 @@ Name Service Switch Service that uses an http JSON backend to authenticate users
    ...
    ```
 7. Test the functionality using `getent passwd <username>`
+
+### Groups and group membership
+A user's *primary* group comes from the `Gid` field on the user. *Supplementary*
+group membership comes from the `GroupMembers` list on a group:
+
+```json
+[
+  { "Name": "joe",    "Passwd": "", "Gid": 3000, "GroupMembers": [] },
+  { "Name": "admins", "Passwd": "", "Gid": 6000, "GroupMembers": ["joe"] }
+]
+```
+
+Verify both with:
+
+```console
+$ getent group admins
+admins:x:6000:joe
+$ id joe
+uid=3000(joe) gid=3000(joe) groups=3000(joe),6000(admins)
+```
+
+Note that `/etc/nsswitch.conf` is consulted in order, so a group that also
+exists in `/etc/group` (for example `staff`, gid 50 on Debian) will resolve to
+the local entry instead of the HTTP one.
 
 ### SSH Authentication
 It is possible to add ssh authentication to the system by altering the `sshd_config`:

@@ -39,12 +39,37 @@ func TestLib(t *testing.T) {
 		AuthKeys: []string{strings.TrimSpace(string(ssh.MarshalAuthorizedKey(privateSSHKey.PublicKey())))},
 	}
 
+	// joe's primary group, no supplementary members.
 	group := types.Group{
 		Name:         "joe",
 		Passwd:       "",
 		Gid:          3000,
 		GroupMembers: []string{},
 	}
+
+	// A supplementary group that joe is a member of. This exercises the
+	// gr_mem / sg_mem pointer vector, which is invisible to every lookup
+	// except the member list itself.
+	adminsGroup := types.Group{
+		Name:         "admins",
+		Passwd:       "",
+		Gid:          6000,
+		GroupMembers: []string{"joe"},
+	}
+
+	// A group with several members, to cover a multi entry vector.
+	//
+	// The name must not collide with a group in the image's /etc/group
+	// (e.g. "staff" is gid 50 on Debian), because nsswitch.conf lists
+	// "files" before "http" and the local entry would win.
+	staffGroup := types.Group{
+		Name:         "proxyteam",
+		Passwd:       "",
+		Gid:          6001,
+		GroupMembers: []string{"joe", "alice", "bob"},
+	}
+
+	allGroups := []types.Group{group, adminsGroup, staffGroup}
 
 	mux.HandleFunc("/user/uid/3000", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(user)
@@ -62,11 +87,32 @@ func TestLib(t *testing.T) {
 	mux.HandleFunc("/group/name/joe", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(group)
 	})
+	mux.HandleFunc("/group/gid/6000", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(adminsGroup)
+	})
+	mux.HandleFunc("/group/name/admins", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(adminsGroup)
+	})
+	mux.HandleFunc("/group/gid/6001", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(staffGroup)
+	})
+	mux.HandleFunc("/group/name/proxyteam", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(staffGroup)
+	})
 	mux.HandleFunc("/groups", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode([]types.Group{group})
+		json.NewEncoder(w).Encode(allGroups)
 	})
 
-	s := httptest.NewServer(mux)
+	// httptest.NewServer listens on 127.0.0.1, which a container cannot
+	// reach. Bind to all interfaces so the module inside the container can
+	// call back out to the test server via host.docker.internal.
+	listener, err := net.Listen("tcp", "0.0.0.0:0")
+	require.NoError(t, err)
+	s := &httptest.Server{
+		Listener: listener,
+		Config:   &http.Server{Handler: mux, ReadHeaderTimeout: time.Minute},
+	}
+	s.Start()
 	defer s.Close()
 	_, httpServerPort, err := net.SplitHostPort(s.Listener.Addr().String())
 	require.NoError(t, err)
@@ -124,6 +170,11 @@ func TestLib(t *testing.T) {
 		UserInUserList(t, &user, false, container)
 		GetSpecificGroup(t, &group, false, container)
 		GroupInGroupList(t, &group, false, container)
+		// Supplementary groups travel through the gr_mem pointer vector.
+		GetSpecificGroup(t, &adminsGroup, false, container)
+		GroupHasMembers(t, &adminsGroup, false, container)
+		GroupHasMembers(t, &staffGroup, false, container)
+		UserHasSupplementaryGroups(t, &user, &group, container, &adminsGroup, &staffGroup)
 	})
 
 	t.Run("only users and groups url specified", func(t *testing.T) {
@@ -258,7 +309,8 @@ func TestLib(t *testing.T) {
 			}
 		}()
 
-		IsUserMemberOfGroup(t, &user, &group, container)
+		IsUserMemberOfGroup(t, &user, &group, container, &adminsGroup, &staffGroup)
+		UserHasSupplementaryGroups(t, &user, &group, container, &adminsGroup, &staffGroup)
 	})
 
 	t.Run("test ssh login", func(t *testing.T) {

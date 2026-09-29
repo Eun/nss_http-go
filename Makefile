@@ -18,6 +18,14 @@ test-container:
 run-test-container: test-container
 	docker run --rm -ti nss_http_test:latest
 
-test: test-container
-	go test -v
+# Unit tests only: no Docker required.
+test-unit:
+	go test -count=1 ./types/... ./utils/... ./config/... ./providers/... .
+
+# Integration tests: drive getent/id/members and real sshd logins through the
+# NSS module inside the test container.
+test-integration: test-container
+	TESTCONTAINERS_RYUK_DISABLED=true go test -count=1 -timeout 25m -v ./libtest/...
+
+test: test-unit test-integration
 
