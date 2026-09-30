@@ -1,0 +1,128 @@
+# Publishes a GitHub Release with the prebuilt NSS module whenever a v* tag
+# is pushed. The quality gates from ci.yml run first, so a broken tag cannot
+# produce a release.
+name: "release"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: "build & publish"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+          cache: true
+
+      # The module is a glibc NSS plugin built with cgo, so it needs the
+      # glibc headers natively and a cross toolchain for arm64. A single
+      # x86_64 runner can produce both objects this way, which avoids
+      # needing an arm64 runner.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libc6-dev gcc-aarch64-linux-gnu
+
+      - name: Verify formatting
+        run: |
+          unformatted="$(gofmt -l $(git ls-files '*.go' | grep -v '^vendor/'))"
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt'ed:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Unit tests
+        run: go test -count=1 -race ./types/... ./utils/... ./config/... ./providers/... .
+
+      - name: Build linux/amd64
+        run: |
+          make all
+          mkdir -p release
+          mv dist/libnss_http.so release/libnss_http.so.2-linux-amd64
+          mv dist/nss_http release/nss_http-linux-amd64
+
+      - name: Build linux/arm64
+        env:
+          CGO_ENABLED: "1"
+          GOARCH: arm64
+          CC: aarch64-linux-gnu-gcc
+        run: |
+          rm -rf dist
+          make all
+          mv dist/libnss_http.so release/libnss_http.so.2-linux-arm64
+          mv dist/nss_http release/nss_http-linux-arm64
+
+      # A shared object for the wrong architecture would fail only at
+      # runtime, inside NSS, where the error surfaces as an unexplained
+      # authentication failure. Verify the ELF arch and the exports here.
+      - name: Verify the built artifacts
+        run: |
+          set -eu
+          check() {
+            file_out="$(file -b "$1")"
+            echo "$1: ${file_out}"
+            case "${file_out}" in
+              *"$2"*) ;;
+              *) echo "expected $2 in: ${file_out}"; exit 1 ;;
+            esac
+
+            missing=0
+            for db in pw sp gr sg; do
+              for fn in "set${db}ent" "end${db}ent" "get${db}ent_r" "get${db}nam_r"; do
+                if ! "$3" -D "$1" | grep -q " T _nss_http_${fn}$"; then
+                  echo "missing export: _nss_http_${fn}"
+                  missing=1
+                fi
+              done
+            done
+            for fn in getpwuid_r getgrgid_r; do
+              if ! "$3" -D "$1" | grep -q " T _nss_http_${fn}$"; then
+                echo "missing export: _nss_http_${fn}"
+                missing=1
+              fi
+            done
+            [ "${missing}" -eq 0 ] || exit 1
+            echo "$1: all 18 NSS entrypoints present"
+          }
+
+          check release/libnss_http.so.2-linux-amd64 "x86-64" nm
+          check release/libnss_http.so.2-linux-arm64 "aarch64" aarch64-linux-gnu-nm
+
+      - name: Checksums
+        run: |
+          cd release
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          body: |
+            NSS module exposing an HTTP JSON backend as `passwd`, `shadow`,
+            `group` and `gshadow`.
+
+            **Requires glibc.** NSS is a glibc mechanism; musl based
+            distributions such as Alpine cannot load this module at all.
+
+            Install the object for your architecture as
+            `/lib/libnss_http.so.2` and the helper as `/sbin/nss_http`, then
+            add `http` to the relevant databases in `/etc/nsswitch.conf`.
+            See the README for the configuration format.
